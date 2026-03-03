@@ -445,6 +445,8 @@ impl Router {
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, _window, cx| {
+                    // MouseDown only fires for taps (deferred by the platform).
+                    // Set touch_start here so tap-to-burst works.
                     if let Some(playground) = &mut this.animation_playground {
                         let pos = point(event.position.x.as_f32(), event.position.y.as_f32());
                         playground.touch_start = Some((pos, std::time::Instant::now()));
@@ -455,8 +457,15 @@ impl Router {
             )
             .on_mouse_move(
                 cx.listener(|this, event: &gpui::MouseMoveEvent, _window, cx| {
+                    // MouseMove fires for every finger movement (including
+                    // drags that don't emit MouseDown).  If touch_start is
+                    // not yet set, this is the beginning of a drag gesture —
+                    // record it so drag-to-throw knows where the drag began.
                     if let Some(playground) = &mut this.animation_playground {
                         let pos = point(event.position.x.as_f32(), event.position.y.as_f32());
+                        if playground.touch_start.is_none() {
+                            playground.touch_start = Some((pos, std::time::Instant::now()));
+                        }
                         playground.current_touch = Some(pos);
                         cx.notify();
                     }

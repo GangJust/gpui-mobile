@@ -1281,18 +1281,15 @@ impl PlatformWindow for AndroidPlatformWindow {
                             start_x: logical_x,
                             start_y: logical_y,
                         };
-                        // Emit MouseDown immediately so interactive screens
-                        // (Animations, Shaders) can track the touch start.
-                        // This matches the iOS dual-emit pattern.
-                        let position = gpui::point(gpui::px(logical_x), gpui::px(logical_y));
-                        let mut guard = cb.lock();
-                        let _ = guard(gpui::PlatformInput::MouseDown(gpui::MouseDownEvent {
-                            button: gpui::MouseButton::Left,
-                            position,
-                            modifiers,
-                            click_count: 1,
-                            first_mouse: false,
-                        }));
+                        // Do NOT emit MouseDown here — wait until we know
+                        // whether this is a tap or a scroll.  Emitting
+                        // MouseDown immediately causes accidental navigation
+                        // when the user starts scrolling near a button/tab.
+                        //
+                        // - Tap (finger lifts within slop) → emit MouseDown +
+                        //   MouseUp together in ACTION_UP.
+                        // - Scroll (finger exceeds slop) → emit only
+                        //   MouseMove + ScrollWheel, no MouseDown.
                     }
 
                     // ── ACTION_MOVE ──────────────────────────────────────
@@ -1377,20 +1374,29 @@ impl PlatformWindow for AndroidPlatformWindow {
                         let position = gpui::point(gpui::px(logical_x), gpui::px(logical_y));
 
                         match *ts {
-                            TouchState::Pending { .. } => {
+                            TouchState::Pending { start_x, start_y } => {
                                 // Finger lifted without exceeding slop →
-                                // this is a tap.  MouseDown was already sent
-                                // in ACTION_DOWN; just send MouseUp to
-                                // complete the click.
+                                // this is a tap.  Emit MouseDown + MouseUp
+                                // together at the original down position so
+                                // hit-testing matches the initial touch point.
                                 {
                                     let mut ms = momentum.lock();
                                     ms.velocity_tracker.reset();
                                     ms.has_pending_scroll = false;
                                 }
+                                let tap_pos = gpui::point(gpui::px(start_x), gpui::px(start_y));
                                 let mut guard = cb.lock();
+                                let _ =
+                                    guard(gpui::PlatformInput::MouseDown(gpui::MouseDownEvent {
+                                        button: gpui::MouseButton::Left,
+                                        position: tap_pos,
+                                        modifiers,
+                                        click_count: 1,
+                                        first_mouse: false,
+                                    }));
                                 let _ = guard(gpui::PlatformInput::MouseUp(gpui::MouseUpEvent {
                                     button: gpui::MouseButton::Left,
-                                    position,
+                                    position: tap_pos,
                                     modifiers,
                                     click_count: 1,
                                 }));

@@ -403,18 +403,18 @@ impl IosWindow {
     ///
     /// Uses a state machine to distinguish **taps** from **drag gestures**:
     ///
-    ///   DOWN  → record start position, emit `MouseDown`, enter "pending"
+    ///   DOWN  → record start position, enter "pending" (NO MouseDown yet)
     ///   MOVE  → if finger moved > threshold → switch to "scrolling",
     ///           emit `ScrollWheel` deltas (for scrollable containers) AND
     ///           `MouseMove` (for interactive canvas screens like Animations)
-    ///   UP    → if still "pending" → emit `MouseUp` (completes a tap)
+    ///   UP    → if still "pending" → emit `MouseDown` + `MouseUp` (tap)
     ///           if "scrolling"   → emit final `ScrollWheel` (Ended) +
     ///           `MouseUp` (so drag-to-throw works)
     ///
-    /// This dual-emit approach ensures that:
-    /// - Scrollable containers (About, Home) receive `ScrollWheel` events
-    /// - Interactive screens (Animations, Shaders) receive `MouseDown` /
-    ///   `MouseMove` / `MouseUp` events for drag interactions
+    /// MouseDown is **deferred** until finger-up so that starting a scroll
+    /// near a button or tab doesn't accidentally trigger navigation.
+    /// Interactive screens use `MouseMove` to track the finger during drags
+    /// and `MouseUp` to detect the end of a throw/drag gesture.
     pub fn handle_touch(&self, touch: *mut Object, _event: *mut Object) {
         let position = touch_location_in_view(touch, self.view);
         let phase = touch_phase(touch);
@@ -446,15 +446,15 @@ impl IosWindow {
                     start_x: logical_x,
                     start_y: logical_y,
                 };
-                // Emit MouseDown immediately so interactive screens
-                // (Animations, Shaders) can track the touch start.
-                emit(PlatformInput::MouseDown(gpui::MouseDownEvent {
-                    button: gpui::MouseButton::Left,
-                    position,
-                    modifiers,
-                    click_count: tap_count as usize,
-                    first_mouse: false,
-                }));
+                // Do NOT emit MouseDown here — wait until we know whether
+                // this is a tap or a scroll.  Emitting MouseDown immediately
+                // causes accidental navigation when the user starts scrolling
+                // near a button/tab.
+                //
+                // - Tap (finger lifts within slop) → emit MouseDown + MouseUp
+                //   together in Ended phase.
+                // - Scroll (finger exceeds slop) → emit only MouseMove +
+                //   ScrollWheel, no MouseDown.
             }
 
             UITouchPhase::Moved => {
@@ -528,14 +528,23 @@ impl IosWindow {
             UITouchPhase::Ended | UITouchPhase::Cancelled => {
                 self.touch_pressed.set(false);
                 match ts {
-                    TouchState::Pending { .. } => {
+                    TouchState::Pending { start_x, start_y } => {
                         // Finger lifted without exceeding slop → tap.
-                        // MouseDown was already sent in Began; just send
-                        // MouseUp to complete the click.
+                        // Emit MouseDown + MouseUp together at the original
+                        // down position so hit-testing matches the initial
+                        // touch point.
                         self.velocity_tracker.borrow_mut().reset();
+                        let tap_pos = gpui::point(gpui::px(start_x), gpui::px(start_y));
+                        emit(PlatformInput::MouseDown(gpui::MouseDownEvent {
+                            button: gpui::MouseButton::Left,
+                            position: tap_pos,
+                            modifiers,
+                            click_count: tap_count as usize,
+                            first_mouse: false,
+                        }));
                         emit(PlatformInput::MouseUp(gpui::MouseUpEvent {
                             button: gpui::MouseButton::Left,
-                            position,
+                            position: tap_pos,
                             modifiers,
                             click_count: tap_count as usize,
                         }));
