@@ -51,6 +51,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use super::{AndroidKeyEvent, Bounds, DevicePixels, Pixels, Point, Size, TouchPoint};
+use crate::momentum::{MomentumScroller, VelocityTracker};
+
+/// Shared momentum scrolling state, accessible from both the touch callback
+/// (which starts/cancels flings and records velocity samples) and the
+/// request-frame callback (which pumps the decelerating animation).
+struct MomentumState {
+    velocity_tracker: VelocityTracker,
+    scroller: MomentumScroller,
+}
 
 // ── NDK / raw-window-handle bindings ─────────────────────────────────────────
 
@@ -846,11 +855,22 @@ pub struct AndroidPlatformWindow {
     appearance_callback: Option<Box<dyn FnMut()>>,
     hit_test_callback: Option<Box<dyn FnMut() -> Option<WindowControlArea>>>,
     title: String,
+    /// Shared momentum scrolling state — used by both the touch callback
+    /// (to start/cancel flings) and the frame callback (to pump inertia).
+    momentum: Arc<Mutex<MomentumState>>,
+    /// Shared reference to the GPUI input callback, so the frame callback can
+    /// emit synthetic momentum ScrollWheel events.  Initialised to a no-op;
+    /// replaced when `on_input` is called.
+    momentum_input_cb:
+        Arc<Mutex<Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult + Send>>>,
 }
 
 impl AndroidPlatformWindow {
     /// Create a new `AndroidPlatformWindow` wrapping an existing `AndroidWindow`.
     pub fn new(window: Arc<AndroidWindow>, display: Option<Rc<dyn PlatformDisplay>>) -> Self {
+        // No-op input callback used until on_input is called.
+        let noop_input_cb: Box<dyn FnMut(gpui::PlatformInput) -> DispatchEventResult + Send> =
+            Box::new(|_| DispatchEventResult::default());
         Self {
             window,
             display,
@@ -866,6 +886,11 @@ impl AndroidPlatformWindow {
             appearance_callback: None,
             hit_test_callback: None,
             title: String::new(),
+            momentum: Arc::new(Mutex::new(MomentumState {
+                velocity_tracker: VelocityTracker::new(),
+                scroller: MomentumScroller::new(),
+            })),
+            momentum_input_cb: Arc::new(Mutex::new(noop_input_cb)),
         }
     }
 
@@ -1042,7 +1067,60 @@ impl PlatformWindow for AndroidPlatformWindow {
         let send_callback: Box<dyn FnMut(RequestFrameOptions) + Send> =
             unsafe { std::mem::transmute(callback) };
         let send_callback = Mutex::new(send_callback);
+
+        // Also capture the input callback so we can emit momentum scroll
+        // events before the GPUI render pass.  The input_callback is stored
+        // as an Arc<Mutex<…>> by on_input — we clone the same Arc here.
+        //
+        // We need a reference to the shared momentum state and the shared
+        // input callback so that the frame callback can pump inertia.
+        let momentum = Arc::clone(&self.momentum);
+        // The input_cb Arc is set up by on_input.  We store a clone of it
+        // on the struct so on_request_frame can capture it.
+        let input_cb = Arc::clone(&self.momentum_input_cb);
+
         self.window.on_request_frame(move || {
+            // ── Momentum scrolling pump ──────────────────────────────
+            // Step the momentum scroller and emit synthetic ScrollWheel
+            // events BEFORE the GPUI render callback so that the scroll
+            // delta is picked up during layout/paint.
+            {
+                let mut ms = momentum.lock();
+                if ms.scroller.is_active() {
+                    if let Some(delta) = ms.scroller.step() {
+                        let position =
+                            gpui::point(gpui::px(delta.position_x), gpui::px(delta.position_y));
+                        let modifiers = gpui::Modifiers::default();
+                        if let Some(mut guard) = input_cb.try_lock() {
+                            let _ =
+                                guard(gpui::PlatformInput::ScrollWheel(gpui::ScrollWheelEvent {
+                                    position,
+                                    delta: gpui::ScrollDelta::Pixels(gpui::point(
+                                        gpui::px(delta.dx),
+                                        gpui::px(delta.dy),
+                                    )),
+                                    modifiers,
+                                    touch_phase: gpui::TouchPhase::Moved,
+                                }));
+                        }
+                    } else {
+                        // Fling finished — emit a zero-delta Ended event.
+                        if let Some(mut guard) = input_cb.try_lock() {
+                            let _ =
+                                guard(gpui::PlatformInput::ScrollWheel(gpui::ScrollWheelEvent {
+                                    position: gpui::point(gpui::px(0.0), gpui::px(0.0)),
+                                    delta: gpui::ScrollDelta::Pixels(gpui::point(
+                                        gpui::px(0.0),
+                                        gpui::px(0.0),
+                                    )),
+                                    modifiers: gpui::Modifiers::default(),
+                                    touch_phase: gpui::TouchPhase::Ended,
+                                }));
+                        }
+                    }
+                }
+            }
+
             let mut cb = send_callback.lock();
             cb(RequestFrameOptions {
                 require_presentation: true,
@@ -1062,6 +1140,12 @@ impl PlatformWindow for AndroidPlatformWindow {
             unsafe { std::mem::transmute(callback) };
         let input_cb = Arc::new(Mutex::new(send_callback));
 
+        // Store a clone for the momentum pump in on_request_frame.
+        *self.momentum_input_cb.lock() = {
+            let cb = Arc::clone(&input_cb);
+            Box::new(move |input: gpui::PlatformInput| -> DispatchEventResult { cb.lock()(input) })
+        };
+
         // ── Touch events → PlatformInput ─────────────────────────────────
         //
         // Android touch events must be translated into both mouse events
@@ -1073,12 +1157,14 @@ impl PlatformWindow for AndroidPlatformWindow {
         //   MOVE  → if finger moved > threshold → switch to "scrolling",
         //           cancel the mouse-down, emit ScrollWheel deltas
         //   UP    → if still "pending" → emit MouseDown + MouseUp (tap)
-        //           if "scrolling"   → emit final ScrollWheel (Ended)
+        //           if "scrolling"   → emit final ScrollWheel (Ended) +
+        //           start momentum fling
         //
         // The threshold is in logical pixels (~8 px ≈ ~3 mm at 160 dpi).
         {
             let cb = Arc::clone(&input_cb);
             let scale_factor = self.window.scale_factor();
+            let momentum = Arc::clone(&self.momentum);
 
             /// Distance (logical px) the finger must travel before a touch
             /// is promoted from a potential tap to a scroll gesture.
@@ -1112,6 +1198,13 @@ impl PlatformWindow for AndroidPlatformWindow {
                 match touch.action {
                     // ── ACTION_DOWN ──────────────────────────────────────
                     0 => {
+                        // Cancel any active momentum fling — the user
+                        // touched the screen, so inertia must stop.
+                        {
+                            let mut ms = momentum.lock();
+                            ms.scroller.cancel();
+                            ms.velocity_tracker.reset();
+                        }
                         *ts = TouchState::Pending {
                             start_x: logical_x,
                             start_y: logical_y,
@@ -1122,6 +1215,12 @@ impl PlatformWindow for AndroidPlatformWindow {
 
                     // ── ACTION_MOVE ──────────────────────────────────────
                     2 => {
+                        // Record every move for velocity estimation.
+                        momentum
+                            .lock()
+                            .velocity_tracker
+                            .record(logical_x, logical_y);
+
                         match *ts {
                             TouchState::Pending { start_x, start_y } => {
                                 let dx = logical_x - start_x;
@@ -1183,6 +1282,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 // at the original down position so that
                                 // hit-testing matches the element under the
                                 // initial touch point.
+                                momentum.lock().velocity_tracker.reset();
                                 let tap_pos = gpui::point(gpui::px(start_x), gpui::px(start_y));
                                 let _ =
                                     guard(gpui::PlatformInput::MouseDown(gpui::MouseDownEvent {
@@ -1200,7 +1300,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                 }));
                             }
                             TouchState::Scrolling { prev_x, prev_y } => {
-                                // End the scroll gesture.
+                                // End the active touch-scroll gesture.
                                 let dx = logical_x - prev_x;
                                 let dy = logical_y - prev_y;
                                 let _ = guard(gpui::PlatformInput::ScrollWheel(
@@ -1214,6 +1314,15 @@ impl PlatformWindow for AndroidPlatformWindow {
                                         touch_phase: gpui::TouchPhase::Ended,
                                     },
                                 ));
+
+                                // ── Start momentum / inertia scrolling ───
+                                // Compute release velocity and kick off the
+                                // momentum scroller.  The frame callback
+                                // will pump synthetic ScrollWheel events.
+                                let mut ms = momentum.lock();
+                                let (vx, vy) = ms.velocity_tracker.velocity();
+                                ms.velocity_tracker.reset();
+                                ms.scroller.fling(vx, vy, logical_x, logical_y);
                             }
                             TouchState::Idle => {}
                         }

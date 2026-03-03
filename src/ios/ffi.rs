@@ -295,6 +295,13 @@ pub extern "C" fn gpui_ios_request_frame(window_ptr: *mut c_void) {
     // Safety: window_ptr must be a valid pointer to an IosWindow
     let window = unsafe { &*(window_ptr as *const super::window::IosWindow) };
 
+    // ── Momentum scrolling ───────────────────────────────────────────────
+    // Pump the momentum scroller BEFORE the render callback so that any
+    // synthetic ScrollWheel events are processed during this frame's
+    // layout/paint cycle.  This produces the smooth, decelerating inertia
+    // scroll that users expect on iOS after a fling gesture.
+    window.pump_momentum();
+
     // Take the callback, invoke it, then restore it
     // We must complete the borrow before invoking the callback,
     // as the callback might try to borrow the same RefCell
