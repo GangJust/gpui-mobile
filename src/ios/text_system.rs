@@ -231,6 +231,10 @@ impl IosTextSystemState {
         fallbacks: Option<&FontFallbacks>,
     ) -> Result<SmallVec<[FontId; 4]>> {
         let mut font_ids = SmallVec::new();
+        // Map virtual font names (e.g. ".SystemUIFont", ".ZedMono", ".ZedSans")
+        // to their concrete equivalents, just like the macOS text system does.
+        // On iOS, ".AppleSystemUIFont" resolves to San Francisco via Core Text.
+        let name = gpui::font_name_with_fallbacks(name, ".AppleSystemUIFont");
         let family = self
             .memory_source
             .select_family_by_name(name)
