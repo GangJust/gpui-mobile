@@ -641,7 +641,19 @@ impl AndroidTextSystemState {
         };
 
         let mut renderer = Render::new(sources);
-        if params.subpixel_rendering {
+        if params.is_emoji {
+            // Emoji glyphs (CBDT bitmaps, COLR v0 outlines) produce RGBA
+            // colour data.  We must use a colour-aware format — NOT
+            // `Format::Alpha` which would discard all colour information
+            // and produce invisible / blank glyphs.
+            //
+            // `CustomSubpixel([0.0, 0.0, 0.0])` tells swash to emit full
+            // RGBA without applying any LCD sub-pixel geometry, which is
+            // exactly what we want for colour emoji.
+            renderer
+                .format(Format::CustomSubpixel([0.0, 0.0, 0.0]))
+                .offset(subpixel_offset);
+        } else if params.subpixel_rendering {
             // swash bug: B and R values are swapped in subpixel_bgra output;
             // we swap them back in `rasterize_glyph` above.
             renderer

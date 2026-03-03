@@ -192,6 +192,56 @@ pub struct AndroidPlatform {
     should_quit: AtomicBool,
 }
 
+/// Check whether a TrueType/OpenType font file contains CBDT (Color Bitmap
+/// Data Table) tables — the bitmap emoji format that swash can render.
+///
+/// Returns `false` for COLR-only fonts (v0 or v1), SVG-only fonts, or if the
+/// file is too small / malformed to parse the table directory.
+fn font_has_cbdt_tables(data: &[u8]) -> bool {
+    // Minimum size: 12-byte offset table header.
+    if data.len() < 12 {
+        return false;
+    }
+    let num_tables = u16::from_be_bytes([data[4], data[5]]) as usize;
+    // Each table record is 16 bytes, starting at offset 12.
+    let table_dir_end = 12 + num_tables * 16;
+    if data.len() < table_dir_end {
+        return false;
+    }
+    for i in 0..num_tables {
+        let offset = 12 + i * 16;
+        if &data[offset..offset + 4] == b"CBDT" {
+            return true;
+        }
+    }
+    false
+}
+
+/// Load a file from the Android APK assets directory via the NDK
+/// `AAssetManager`.
+///
+/// `path` is relative to the `assets/` directory in the APK (e.g.
+/// `"fonts/NotoColorEmoji.ttf"`).
+fn load_asset_bytes(app: &android_activity::AndroidApp, path: &str) -> anyhow::Result<Vec<u8>> {
+    use std::ffi::CString;
+
+    let asset_manager = app.asset_manager();
+    let c_path = CString::new(path)?;
+
+    // Open the asset.  `AssetManager::open` returns `Option<Asset>`.
+    let mut asset = asset_manager
+        .open(&c_path)
+        .ok_or_else(|| anyhow::anyhow!("asset not found: {path}"))?;
+
+    // `Asset::buffer` returns `io::Result<&[u8]>` — the entire file mapped
+    // into memory.
+    let bytes = asset
+        .buffer()
+        .map_err(|e| anyhow::anyhow!("failed to read asset buffer for {path}: {e}"))?;
+
+    Ok(bytes.to_vec())
+}
+
 impl AndroidPlatform {
     // ── constructors ─────────────────────────────────────────────────────────
 
@@ -249,8 +299,11 @@ impl AndroidPlatform {
                 "/system/fonts/NotoSansArabic-Regular.ttf",
                 "/system/fonts/NotoSansHebrew-Regular.ttf",
                 "/system/fonts/NotoSansThai-Regular.ttf",
-                // Emoji fonts — loaded so glyphs like 🦀 ✅ ❤️ render
-                "/system/fonts/NotoColorEmoji.ttf",
+                // Emoji fonts — loaded so glyphs like 🦀 ✅ ❤️ render.
+                // NOTE: On Android 13+ (API 33+) the system NotoColorEmoji.ttf
+                // uses COLR v1 color outlines which swash cannot render.  We
+                // detect this below and load a bundled CBDT-based fallback
+                // instead.  The flag font is still useful regardless.
                 "/system/fonts/NotoColorEmojiFlags.ttf",
                 // Serif (fallback)
                 "/system/fonts/NotoSerif-Regular.ttf",
@@ -268,6 +321,56 @@ impl AndroidPlatform {
                     }
                 }
             }
+
+            // ── Emoji font: prefer CBDT (bitmap) over COLR v1 ───────────
+            //
+            // swash can render CBDT/CBLC bitmap emoji and COLR v0 colour
+            // outlines, but NOT COLR v1 (used by Android 13+ / API 33+).
+            // If the system font lacks CBDT tables we load a bundled
+            // CBDT-based NotoColorEmoji from the APK assets instead.
+            let system_emoji_path = "/system/fonts/NotoColorEmoji.ttf";
+            let mut emoji_loaded = false;
+
+            if let Ok(system_emoji_bytes) = std::fs::read(system_emoji_path) {
+                if font_has_cbdt_tables(&system_emoji_bytes) {
+                    log::info!(
+                        "system emoji font has CBDT tables — using it ({} bytes)",
+                        system_emoji_bytes.len()
+                    );
+                    font_data.push(std::borrow::Cow::Owned(system_emoji_bytes));
+                    emoji_loaded = true;
+                } else {
+                    log::info!(
+                        "system emoji font is COLR v1 (no CBDT) — will try bundled fallback"
+                    );
+                }
+            }
+
+            if !emoji_loaded {
+                // Try loading the bundled CBDT NotoColorEmoji from APK assets.
+                if let Some(app) = crate::android::jni_entry::android_app() {
+                    match load_asset_bytes(&app, "fonts/NotoColorEmoji.ttf") {
+                        Ok(bytes) => {
+                            log::info!(
+                                "loaded bundled CBDT emoji font from assets ({} bytes)",
+                                bytes.len()
+                            );
+                            font_data.push(std::borrow::Cow::Owned(bytes));
+                            emoji_loaded = true;
+                        }
+                        Err(e) => {
+                            log::warn!("failed to load bundled emoji font from assets: {e:#}");
+                        }
+                    }
+                } else {
+                    log::debug!("no AndroidApp available — cannot load bundled emoji font");
+                }
+            }
+
+            if !emoji_loaded {
+                log::warn!("no compatible emoji font loaded — emoji glyphs may not render");
+            }
+
             if !font_data.is_empty() {
                 if let Err(e) = text_system.add_fonts(font_data) {
                     log::warn!("failed to add system fonts: {e:#}");
