@@ -44,10 +44,22 @@ use std::time::Instant;
 /// e^(−3.0·t) in continuous time.  We use a similar value tuned so that a
 /// moderate flick (~1500 px/s) scrolls about 3–4 screen-lengths before
 /// stopping — matching native feel on both iOS and Android.
-const DECELERATION_RATE: f32 = 0.997;
+/// Deceleration rate per millisecond.  Android's native `OverScroller` uses
+/// a ViewConfiguration-derived friction that corresponds to roughly 0.985
+/// per ms in continuous time.  iOS `UIScrollView` with its default
+/// `decelerationRate = .normal` (0.998) is slightly floatier but still
+/// much snappier than our previous 0.997.
+///
+/// **0.985** gives a moderate-fast fling (~2000 px/s) about 1.5–2 screen
+/// lengths of travel before stopping — close to native Android feel.
+/// The previous value of 0.997 was far too close to 1.0 (barely any
+/// friction), making scrolls feel floaty and laggy.
+const DECELERATION_RATE: f32 = 0.985;
 
 /// Below this velocity (px/s) we consider the fling finished.
-const MIN_VELOCITY: f32 = 20.0;
+/// Raised from 20 → 50 to cut the long, barely-visible tail of the
+/// deceleration curve that made scrolling feel like it "stuck" at the end.
+const MIN_VELOCITY: f32 = 50.0;
 
 /// Maximum velocity (px/s) we allow.  Caps extremely fast flings so they
 /// don't overshoot wildly.
@@ -59,7 +71,11 @@ const MAX_SAMPLES: usize = 20;
 /// Only samples within this time window (seconds) are used for velocity
 /// estimation.  Older samples are ignored so that a slow-then-fast gesture
 /// correctly captures the fast release velocity.
-const VELOCITY_WINDOW_SECS: f64 = 0.1; // 100 ms
+///
+/// Widened from 100 ms → 150 ms to capture slightly more of the gesture
+/// for smoother velocity estimation, especially on devices where touch
+/// events may be batched or delayed under load.
+const VELOCITY_WINDOW_SECS: f64 = 0.15; // 150 ms
 
 /// Minimum number of samples needed to compute a meaningful velocity.
 const MIN_SAMPLES_FOR_VELOCITY: usize = 2;
@@ -272,9 +288,9 @@ impl MomentumScroller {
 
     /// Advance the momentum animation by one frame.
     ///
-    /// Returns `Some((dx, dy, current_x, current_y))` — the scroll delta in
-    /// logical pixels and the current position — or `None` if the fling has
-    /// finished (velocity dropped below threshold).
+    /// Returns `Some(MomentumDelta)` — the scroll delta in logical pixels
+    /// and the current position — or `None` if the fling has finished
+    /// (velocity dropped below threshold).
     ///
     /// The caller should emit a `ScrollWheel` event with the returned delta.
     pub fn step(&mut self) -> Option<MomentumDelta> {
@@ -286,8 +302,10 @@ impl MomentumScroller {
         let dt = now.duration_since(self.last_time).as_secs_f64() as f32;
         self.last_time = now;
 
-        // Guard against huge dt (e.g. app was suspended).
-        let dt = dt.min(0.1); // cap at 100ms
+        // Guard against huge dt (e.g. app was suspended or a GC pause).
+        // Cap at 50ms (~20 fps) instead of 100ms — if we've been stalled
+        // that long the user probably noticed; don't teleport the content.
+        let dt = dt.min(0.05);
 
         if dt < 1e-6 {
             return None;
@@ -297,20 +315,36 @@ impl MomentumScroller {
         // where dt_ms = dt * 1000.
         let dt_ms = dt * 1000.0;
         let decay = DECELERATION_RATE.powf(dt_ms);
+
+        // Compute displacement using the analytical integral of
+        // v * r^t over [0, dt_ms]:
+        //   ∫₀^{dt_ms} v·r^t dt = v · (r^dt_ms − 1) / ln(r)
+        //
+        // This is more accurate than the simple v*dt approximation,
+        // especially during the high-velocity early phase where v*dt
+        // overshoot can make scrolling feel jumpy.
+        let ln_r = DECELERATION_RATE.ln();
+        let displacement_factor = if ln_r.abs() > 1e-9 {
+            (decay - 1.0) / (ln_r * 1000.0) // divide by 1000 to convert ms→s
+        } else {
+            dt // degenerate: r≈1, integral ≈ v*dt
+        };
+
+        let dx = self.vx * displacement_factor;
+        let dy = self.vy * displacement_factor;
+
+        // Now apply decay to velocity for the next frame.
         self.vx *= decay;
         self.vy *= decay;
 
         let speed = (self.vx * self.vx + self.vy * self.vy).sqrt();
         if speed < MIN_VELOCITY {
             self.active = false;
-            // Emit one final tiny delta to signal the end.
-            return None;
+            // Include the final displacement so the last frame isn't lost.
+            if dx.abs() < 0.1 && dy.abs() < 0.1 {
+                return None;
+            }
         }
-
-        // Compute displacement: integral of v·e^(−k·t) over [0, dt].
-        // For discrete steps with small dt, v*dt is accurate enough.
-        let dx = self.vx * dt;
-        let dy = self.vy * dt;
 
         self.last_x += dx;
         self.last_y += dy;

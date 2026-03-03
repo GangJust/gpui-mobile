@@ -346,12 +346,12 @@ impl Router {
         let bar_bg = if self.dark_mode { MANTLE } else { 0xdce0e8 };
 
         let tabs: &[(&str, &str, Screen)] = &[
-            ("[H]", "Home", Screen::Home),
-            ("[#]", "Counter", Screen::Counter),
-            ("[▶]", "Anims", Screen::Animations),
-            ("[◆]", "UI Kit", Screen::Components),
-            ("[S]", "Settings", Screen::Settings),
-            ("[i]", "About", Screen::About),
+            ("🏠", "Home", Screen::Home),
+            ("🔢", "Counter", Screen::Counter),
+            ("🎾", "Anims", Screen::Animations),
+            ("🧩", "UI Kit", Screen::Components),
+            ("⚙️", "Settings", Screen::Settings),
+            ("ℹ️", "About", Screen::About),
         ];
 
         let mut bar = div()
@@ -448,6 +448,15 @@ impl Router {
                     if let Some(playground) = &mut this.animation_playground {
                         let pos = point(event.position.x.as_f32(), event.position.y.as_f32());
                         playground.touch_start = Some((pos, std::time::Instant::now()));
+                        playground.current_touch = Some(pos);
+                        cx.notify();
+                    }
+                }),
+            )
+            .on_mouse_move(
+                cx.listener(|this, event: &gpui::MouseMoveEvent, _window, cx| {
+                    if let Some(playground) = &mut this.animation_playground {
+                        let pos = point(event.position.x.as_f32(), event.position.y.as_f32());
                         playground.current_touch = Some(pos);
                         cx.notify();
                     }

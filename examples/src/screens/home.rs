@@ -98,7 +98,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                         .child("Explore screens"),
                 )
                 .child(nav_card(
-                    "[#]",
+                    "🔢",
                     "Counter",
                     "Tap the button and watch it count",
                     BLUE,
@@ -111,7 +111,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                     }),
                 ))
                 .child(nav_card(
-                    "[S]",
+                    "⚙️",
                     "Settings",
                     "Toggle dark mode and configure options",
                     MAUVE,
@@ -124,7 +124,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                     }),
                 ))
                 .child(nav_card(
-                    "[i]",
+                    "ℹ️",
                     "About",
                     "Learn about GPUI and this example app",
                     TEAL,
@@ -137,7 +137,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                     }),
                 ))
                 .child(nav_card(
-                    "[~]",
+                    "🎨",
                     "Shaders",
                     "Dynamic gradients, orbs & ripple effects",
                     PEACH,
@@ -150,7 +150,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                     }),
                 ))
                 .child(nav_card(
-                    "[◆]",
+                    "🧩",
                     "UI Kit",
                     "Apple Glass & Material Design components",
                     GREEN,
