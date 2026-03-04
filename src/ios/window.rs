@@ -258,11 +258,6 @@ fn register_text_input_view_class() -> &'static Class {
             YES
         }
 
-        // Add UITextInputTraits protocol so iOS respects keyboard type settings
-        if let Some(protocol) = objc::runtime::Protocol::get("UITextInputTraits") {
-            decl.add_protocol(protocol);
-        }
-
         unsafe {
             decl.add_method(
                 sel!(hasText),
@@ -819,6 +814,11 @@ impl IosWindow {
     }
 
     /// Show the software keyboard with the specified keyboard type.
+    ///
+    /// The actual `becomeFirstResponder` call is deferred to the next run-loop
+    /// iteration via `performSelector:withObject:afterDelay:` to avoid re-entering
+    /// GPUI's event dispatch while an entity lease is active (UIKit's keyboard
+    /// presentation can synchronously trigger layout callbacks).
     pub fn show_keyboard_with_type(&self, keyboard_type: crate::KeyboardType) {
         log::info!("GPUI iOS: Showing keyboard (type={:?})", keyboard_type);
         unsafe {
@@ -832,24 +832,32 @@ impl IosWindow {
                 KeyboardType::Decimal => 8,       // UIKeyboardTypeDecimalPad
             };
             let _: () = msg_send![self.text_input_view, setKeyboardType: kb_type];
-            // Disable autocorrection/autocapitalization for cleaner input
             let _: () = msg_send![self.text_input_view, setAutocorrectionType: 1_isize]; // UITextAutocorrectionTypeNo
             let _: () = msg_send![self.text_input_view, setAutocapitalizationType: 0_isize]; // UITextAutocapitalizationTypeNone
-            // Must resign and re-become first responder for keyboard type change to take effect
-            let is_first: BOOL = msg_send![self.text_input_view, isFirstResponder];
-            if is_first == YES {
-                let _: BOOL = msg_send![self.text_input_view, resignFirstResponder];
-            }
-            let _: BOOL = msg_send![self.text_input_view, becomeFirstResponder];
+
+            // Defer becomeFirstResponder to the next run-loop iteration.
+            // Using performSelector:withObject:afterDelay:0 schedules on the
+            // current run loop, avoiding re-entrance into GPUI dispatch.
+            let _: () = msg_send![self.text_input_view,
+                performSelector: sel!(becomeFirstResponder)
+                withObject: ptr::null::<Object>()
+                afterDelay: 0.0_f64
+            ];
         }
     }
 
-    /// Hide the software keyboard
+    /// Hide the software keyboard.
+    ///
+    /// Deferred to the next run-loop iteration (like `show_keyboard_with_type`)
+    /// to avoid re-entering GPUI event dispatch.
     pub fn hide_keyboard(&self) {
         log::info!("GPUI iOS: Hiding keyboard");
         unsafe {
-            // Resign first responder to hide keyboard
-            let _: BOOL = msg_send![self.text_input_view, resignFirstResponder];
+            let _: () = msg_send![self.text_input_view,
+                performSelector: sel!(resignFirstResponder)
+                withObject: ptr::null::<Object>()
+                afterDelay: 0.0_f64
+            ];
         }
     }
 

@@ -22,7 +22,7 @@ cd gradle
 
 # 4. Install and run on a connected device
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n com.gpui.mobile.example/android.app.NativeActivity
+adb shell am start -n dev.gpui.mobile.example/android.app.NativeActivity
 
 # 5. Watch logs
 adb logcat -s gpui-mobile-example:V
@@ -223,7 +223,7 @@ Output: `gradle/app/build/outputs/apk/debug/app-debug.apk`
 
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n com.gpui.mobile.example/android.app.NativeActivity
+adb shell am start -n dev.gpui.mobile.example/android.app.NativeActivity
 ```
 
 ### One-liner (build + package + install)
@@ -234,7 +234,7 @@ cd examples/android_app \
   && cd gradle \
   && ./gradlew assembleDebug \
   && adb install -r app/build/outputs/apk/debug/app-debug.apk \
-  && adb shell am start -n com.gpui.mobile.example/android.app.NativeActivity
+  && adb shell am start -n dev.gpui.mobile.example/android.app.NativeActivity
 ```
 
 ## Key Files Reference

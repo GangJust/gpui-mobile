@@ -1,5 +1,7 @@
 We implement the basic packages used in the apps in the `src/packages` module (e.g., `src/packages/connectivity`, `src/packages/sensors`, etc.). Feature-gate each package. Visit the GitHub repo of each package, review the source code, and implement the complete functionality. Also check the example code to understand usage. Implement in the following order of priority:
 
+eg: src/packages/connectivity/mod.rs,android/,ios/ etc., we can have a common interface in mod.rs and platform-specific implementations in android/ and ios/ folders. The mod.rs file can use conditional compilation to include the appropriate platform-specific implementation based on the target platform.
+
 **Tier 1 — Core Utilities (foundational, used by almost every app)**
 
 1. https://pub.dev/packages/url_launcher
@@ -8,11 +10,12 @@ We implement the basic packages used in the apps in the `src/packages` module (e
 4. https://pub.dev/packages/package_info_plus
 5. https://pub.dev/packages/device_info_plus
 6. https://pub.dev/packages/flutter_inappwebview
+6. https://pub.dev/packages/connectivity_plus
+7. https://pub.dev/packages/network_info_plus
 
 **Tier 2 — Networking & Location (critical for connected/location-aware apps)**
 
-6. https://pub.dev/packages/connectivity_plus
-7. https://pub.dev/packages/network_info_plus
+
 8. https://pub.dev/packages/geolocator
 9. https://pub.dev/packages/location
 

@@ -18,11 +18,11 @@ plugins {
 }
 
 android {
-    namespace = "com.gpui.mobile.example"
+    namespace = "dev.gpui.mobile.example"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.gpui.mobile.example"
+        applicationId = "dev.gpui.mobile.example"
         minSdk = 26          // Vulkan 1.0 is mandatory from API 26+
         targetSdk = 34
         versionCode = 1

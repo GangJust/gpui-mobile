@@ -158,7 +158,7 @@ cd android/gradle
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 # Launch
-adb shell am start -n "com.gpui.mobile.example/android.app.NativeActivity"
+adb shell am start -n "dev.gpui.mobile.example/android.app.NativeActivity"
 ```
 
 ### Host (documentation / CI check)

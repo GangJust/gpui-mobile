@@ -36,6 +36,10 @@ pub struct TextInput<V: 'static> {
     focused: bool,
     keyboard_type: crate::KeyboardType,
     on_tap: Option<Box<dyn Fn(&mut V, &MouseDownEvent, &mut gpui::Window, &mut gpui::Context<V>)>>,
+    /// Simple tap callback that does NOT lease the parent entity.
+    /// Use this instead of `on_tap` when the parent has other `cx.listener`
+    /// handlers to avoid entity lease conflicts in GPUI.
+    on_tap_simple: Option<std::rc::Rc<dyn Fn()>>,
 }
 
 impl<V: 'static> TextInput<V> {
@@ -52,6 +56,7 @@ impl<V: 'static> TextInput<V> {
             focused: false,
             keyboard_type: crate::KeyboardType::Default,
             on_tap: None,
+            on_tap_simple: None,
         }
     }
 
@@ -106,6 +111,17 @@ impl<V: 'static> TextInput<V> {
         handler: impl Fn(&mut V, &MouseDownEvent, &mut gpui::Window, &mut gpui::Context<V>) + 'static,
     ) -> Self {
         self.on_tap = Some(Box::new(handler));
+        self
+    }
+
+    /// Set a simple tap callback that does NOT lease the parent entity.
+    ///
+    /// Use this instead of `on_tap` to avoid entity lease conflicts when
+    /// the parent view has other `cx.listener` handlers (e.g. pull-to-refresh).
+    /// The callback should set thread-local state and call `cx.notify()`
+    /// separately.
+    pub fn on_tap_notify(mut self, handler: impl Fn() + 'static) -> Self {
+        self.on_tap_simple = Some(std::rc::Rc::new(handler));
         self
     }
 
@@ -194,8 +210,17 @@ impl<V: 'static> TextInput<V> {
 
         input_box = input_box.child(text_row);
 
-        // Wire up tap handler
-        if let Some(on_tap) = self.on_tap {
+        // Wire up tap handler — prefer on_tap_simple (no entity lease) over on_tap
+        if let Some(handler) = self.on_tap_simple {
+            let handler_clone = handler.clone();
+            input_box = input_box.on_mouse_down(
+                MouseButton::Left,
+                move |_event: &MouseDownEvent, _window: &mut gpui::Window, _cx: &mut gpui::App| {
+                    log::info!("TextInput: on_tap_simple handler firing");
+                    (handler_clone)();
+                },
+            );
+        } else if let Some(on_tap) = self.on_tap {
             let on_tap = std::rc::Rc::new(on_tap);
             let on_tap_clone = on_tap.clone();
             input_box = input_box.on_mouse_down(

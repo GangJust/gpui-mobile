@@ -315,7 +315,7 @@ _ios_run_simulator() {
     xcrun simctl install "$sim_id" "$app_path"
 
     info "Launching app..."
-    xcrun simctl launch "$sim_id" dev.zed.gpui-ios-example
+    xcrun simctl launch "$sim_id" dev.gpui.mobile.example
     info "App launched on simulator! 🚀"
 }
 
@@ -353,7 +353,7 @@ _ios_run_device() {
         info "Launching app on device..."
         xcrun devicectl device process launch \
             --device "$device_id" \
-            dev.zed.gpui-ios-example \
+            dev.gpui.mobile.example \
             2>&1 || true
 
         info "App launched on device! 🚀"
@@ -521,7 +521,7 @@ _android_install_and_launch() {
 
     info "Launching app..."
     adb shell am start \
-        -n "com.gpui.mobile.example/android.app.NativeActivity" \
+        -n "dev.gpui.mobile.example/android.app.NativeActivity" \
         -a android.intent.action.MAIN \
         -c android.intent.category.LAUNCHER \
         2>&1

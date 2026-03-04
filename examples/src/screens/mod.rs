@@ -306,6 +306,7 @@ impl Router {
 
 impl Render for Router {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        log::info!("Router: render() screen={:?}", self.current_screen);
         let show_tab_bar = self.current_screen.is_tab_root();
         let theme = gpui_mobile::components::material::MaterialTheme::from_appearance(self.dark_mode);
         let bg_color = theme.surface;
@@ -439,17 +440,6 @@ impl Router {
             .id("screen-scroll-container")
             .flex_1()
             .overflow_y_scroll()
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _, _, cx| {
-                    if this.form.focused_field.is_some() {
-                        this.form.focused_field = None;
-                        gpui_mobile::hide_keyboard();
-                        gpui_mobile::set_text_input_callback(None);
-                        cx.notify();
-                    }
-                }),
-            )
             .child(screen_content)
             .into_any_element()
     }
