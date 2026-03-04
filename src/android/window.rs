@@ -1511,6 +1511,7 @@ impl PlatformWindow for AndroidPlatformWindow {
                                     crate::dispatch_text_input(&s);
                                 }
                             }
+                            false
                         }
                     };
                 }

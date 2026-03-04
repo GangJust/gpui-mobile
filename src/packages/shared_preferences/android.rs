@@ -9,7 +9,7 @@ impl AndroidSharedPreferences {
 
     pub fn get_string(&self, key: &str) -> Option<String> {
         let jni = JniEnv::obtain().ok()?;
-        let prefs = get_default_prefs(&jni)?;
+        let prefs = unsafe { get_default_prefs(&jni)? };
         unsafe {
             let jkey = jni.new_string_utf(key);
             if jkey.is_null() { jni.delete_local_ref(prefs); return None; }
@@ -65,7 +65,7 @@ impl AndroidSharedPreferences {
 
     pub fn get_int(&self, key: &str) -> Option<i64> {
         let jni = JniEnv::obtain().ok()?;
-        let prefs = get_default_prefs(&jni)?;
+        let prefs = unsafe { get_default_prefs(&jni)? };
         unsafe {
             if !self.contains_key_jni(&jni, prefs, key) {
                 jni.delete_local_ref(prefs);
@@ -105,7 +105,7 @@ impl AndroidSharedPreferences {
 
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         let jni = JniEnv::obtain().ok()?;
-        let prefs = get_default_prefs(&jni)?;
+        let prefs = unsafe { get_default_prefs(&jni)? };
         unsafe {
             if !self.contains_key_jni(&jni, prefs, key) {
                 jni.delete_local_ref(prefs);
@@ -180,7 +180,7 @@ impl AndroidSharedPreferences {
             Ok(j) => j,
             Err(_) => return false,
         };
-        let prefs = match get_default_prefs(&jni) {
+        let prefs = match unsafe { get_default_prefs(&jni) } {
             Some(p) => p,
             None => return false,
         };

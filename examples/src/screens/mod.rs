@@ -17,6 +17,7 @@ pub mod components;
 pub mod counter;
 pub mod form;
 pub mod home;
+pub mod packages_demo;
 pub mod settings;
 
 use crate::demos::{AnimationPlayground, ShaderShowcase};
@@ -42,6 +43,7 @@ pub enum Screen {
     Form,
     Animations,
     Shaders,
+    PackagesDemo,
 }
 
 impl Screen {
@@ -57,6 +59,7 @@ impl Screen {
             Screen::Form => "Material Form",
             Screen::Animations => "Animations",
             Screen::Shaders => "Shaders",
+            Screen::PackagesDemo => "Packages",
         }
     }
 
@@ -447,6 +450,7 @@ impl Router {
             Screen::AppleGlass => self.render_apple_glass_screen(cx).into_any_element(),
             Screen::Material => self.render_material_screen(cx).into_any_element(),
             Screen::Form => self.render_form_screen(cx).into_any_element(),
+            Screen::PackagesDemo => self.render_packages_demo_screen(cx).into_any_element(),
             Screen::Animations | Screen::Shaders => unreachable!(),
         };
 
@@ -551,6 +555,10 @@ impl Router {
 
     fn render_form_screen(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         form::render(self, cx)
+    }
+
+    fn render_packages_demo_screen(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        packages_demo::render(self, cx)
     }
 
     // ── Demo screen content (rendered below the TopAppBar) ────────────────────

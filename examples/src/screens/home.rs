@@ -176,6 +176,19 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                     }),
                 ))
                 .child(nav_card(
+                    "📦",
+                    "Packages",
+                    "Device info, paths, prefs, vibration & more",
+                    PEACH,
+                    card_bg,
+                    text_color,
+                    sub_text,
+                    cx.listener(|this, _event, _window, cx| {
+                        this.navigate_to(Screen::PackagesDemo);
+                        cx.notify();
+                    }),
+                ))
+                .child(nav_card(
                     "🎾",
                     "Animations",
                     "Bouncing balls, physics trails & particles",

@@ -256,7 +256,7 @@ impl JniEnv {
         if chars.is_null() {
             return String::new();
         }
-        let s = std::ffi::CStr::from_ptr(chars).to_string_lossy().into_owned();
+        let s = std::ffi::CStr::from_ptr(chars as *const std::ffi::c_char).to_string_lossy().into_owned();
         release_chars(self.env, jstr, chars);
         s
     }
