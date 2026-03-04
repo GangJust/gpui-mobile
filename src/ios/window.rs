@@ -222,6 +222,12 @@ fn register_text_input_view_class() -> &'static Class {
         // Store the IosWindow pointer so callbacks can reach the Rust window.
         decl.add_ivar::<*mut std::ffi::c_void>(GPUI_WINDOW_IVAR);
 
+        // UITextInputTraits property storage — UIView doesn't provide these,
+        // but iOS reads them from the first responder to configure the keyboard.
+        decl.add_ivar::<isize>("_keyboardType");           // UIKeyboardType
+        decl.add_ivar::<isize>("_autocorrectionType");     // UITextAutocorrectionType
+        decl.add_ivar::<isize>("_autocapitalizationType"); // UITextAutocapitalizationType
+
         // --- UIKeyInput protocol methods ---
 
         // BOOL hasText
@@ -258,6 +264,26 @@ fn register_text_input_view_class() -> &'static Class {
             YES
         }
 
+        // --- UITextInputTraits property accessors ---
+        extern "C" fn get_keyboard_type(this: &Object, _sel: Sel) -> isize {
+            unsafe { *this.get_ivar::<isize>("_keyboardType") }
+        }
+        extern "C" fn set_keyboard_type(this: &mut Object, _sel: Sel, val: isize) {
+            unsafe { this.set_ivar::<isize>("_keyboardType", val); }
+        }
+        extern "C" fn get_autocorrection_type(this: &Object, _sel: Sel) -> isize {
+            unsafe { *this.get_ivar::<isize>("_autocorrectionType") }
+        }
+        extern "C" fn set_autocorrection_type(this: &mut Object, _sel: Sel, val: isize) {
+            unsafe { this.set_ivar::<isize>("_autocorrectionType", val); }
+        }
+        extern "C" fn get_autocapitalization_type(this: &Object, _sel: Sel) -> isize {
+            unsafe { *this.get_ivar::<isize>("_autocapitalizationType") }
+        }
+        extern "C" fn set_autocapitalization_type(this: &mut Object, _sel: Sel, val: isize) {
+            unsafe { this.set_ivar::<isize>("_autocapitalizationType", val); }
+        }
+
         unsafe {
             decl.add_method(
                 sel!(hasText),
@@ -274,6 +300,32 @@ fn register_text_input_view_class() -> &'static Class {
             decl.add_method(
                 sel!(canBecomeFirstResponder),
                 can_become_first_responder as extern "C" fn(&Object, Sel) -> BOOL,
+            );
+
+            // UITextInputTraits property methods
+            decl.add_method(
+                sel!(keyboardType),
+                get_keyboard_type as extern "C" fn(&Object, Sel) -> isize,
+            );
+            decl.add_method(
+                sel!(setKeyboardType:),
+                set_keyboard_type as extern "C" fn(&mut Object, Sel, isize),
+            );
+            decl.add_method(
+                sel!(autocorrectionType),
+                get_autocorrection_type as extern "C" fn(&Object, Sel) -> isize,
+            );
+            decl.add_method(
+                sel!(setAutocorrectionType:),
+                set_autocorrection_type as extern "C" fn(&mut Object, Sel, isize),
+            );
+            decl.add_method(
+                sel!(autocapitalizationType),
+                get_autocapitalization_type as extern "C" fn(&Object, Sel) -> isize,
+            );
+            decl.add_method(
+                sel!(setAutocapitalizationType:),
+                set_autocapitalization_type as extern "C" fn(&mut Object, Sel, isize),
             );
         }
 

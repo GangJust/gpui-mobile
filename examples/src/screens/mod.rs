@@ -440,6 +440,20 @@ impl Router {
             .id("screen-scroll-container")
             .flex_1()
             .overflow_y_scroll()
+            // Dismiss keyboard when tapping outside text input fields.
+            // Safe to use cx.listener here because text inputs use on_tap_notify
+            // (no entity lease) so there's no double-lease conflict.
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _event: &MouseDownEvent, _window, cx| {
+                    if this.form.focused_field.is_some() {
+                        this.form.focused_field = None;
+                        gpui_mobile::hide_keyboard();
+                        gpui_mobile::set_text_input_callback(None);
+                        cx.notify();
+                    }
+                }),
+            )
             .child(screen_content)
             .into_any_element()
     }

@@ -12,6 +12,7 @@ Create todos for each package implementation, and track progress in the `TODO.md
 6. https://pub.dev/packages/flutter_inappwebview
 6. https://pub.dev/packages/connectivity_plus
 7. https://pub.dev/packages/network_info_plus
+16. https://pub.dev/packages/flutter_vibrate
 
 **Tier 2 — Networking & Location (critical for connected/location-aware apps)**
 
@@ -30,7 +31,6 @@ Create todos for each package implementation, and track progress in the `TODO.md
 
 14. https://pub.dev/packages/sensors_plus
 15. https://pub.dev/packages/battery_plus
-16. https://pub.dev/packages/flutter_vibrate
 
 **Tier 5 — Platform-Specific & UI Helpers**
 
