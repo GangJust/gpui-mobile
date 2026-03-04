@@ -6,3 +6,5 @@
 - Essential packages used in the apps (e.g., connectivity, sensors, notifications, sharing, media playback). Port from the flutter ecosystem?
 - Deeplinking?
 - Provide inbuilt routing/navigation solution ?
+- Maps?
+- In-app purchases?

@@ -285,6 +285,12 @@ impl Router {
     /// Go back to the previous screen. Returns `true` if navigation occurred.
     pub fn go_back(&mut self) -> bool {
         if let Some(prev) = self.history.pop() {
+            // Dismiss keyboard when navigating back
+            if self.form.focused_field.is_some() {
+                self.form.focused_field = None;
+                gpui_mobile::hide_keyboard();
+                gpui_mobile::set_text_input_callback(None);
+            }
             self.current_screen = prev;
             true
         } else {

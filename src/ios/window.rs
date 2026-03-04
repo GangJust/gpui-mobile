@@ -939,18 +939,23 @@ impl IosWindow {
 
             log::info!("GPUI iOS: Text input: {:?}", text_str);
 
-            // First try the global text input callback (for our TextInput components)
-            if crate::dispatch_text_input(&text_str) {
-                return;
+            // Try the global text input callback (for our TextInput components).
+            // The text is captured in PENDING_TEXT regardless of whether we also
+            // send key events below.
+            let dispatched = crate::dispatch_text_input(&text_str);
+
+            // Try the input handler (for GPUI's built-in text fields)
+            if !dispatched {
+                if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
+                    handler.replace_text_in_range(None, &text_str);
+                    return;
+                }
             }
 
-            // Then try the input handler (for GPUI's built-in text fields)
-            if let Some(handler) = self.input_handler.borrow_mut().as_mut() {
-                handler.replace_text_in_range(None, &text_str);
-                return;
-            }
-
-            // Otherwise, send as key events
+            // Send key events through GPUI's input callback.
+            // Even if dispatch_text_input captured the text, we still send key
+            // events so GPUI triggers a re-render cycle (which runs
+            // drain_pending_text and updates the UI).
             for c in text_str.chars() {
                 let keystroke = gpui::Keystroke {
                     modifiers: Modifiers::default(),
@@ -981,11 +986,10 @@ impl IosWindow {
         log::info!("GPUI iOS: deleteBackward");
 
         // Try the global callback first (backspace = "\x08")
-        if crate::dispatch_text_input("\x08") {
-            return;
-        }
+        crate::dispatch_text_input("\x08");
 
-        // Fallback: send a Backspace KeyDown event through GPUI
+        // Always send a Backspace KeyDown event through GPUI to trigger
+        // a re-render cycle (which runs drain_pending_text).
         let keystroke = gpui::Keystroke {
             modifiers: Modifiers::default(),
             key: "backspace".to_string(),
