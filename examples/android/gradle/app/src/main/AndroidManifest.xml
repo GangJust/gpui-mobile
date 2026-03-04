@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <!--
   AndroidManifest.xml for the GPUI Mobile Android Example.
 
@@ -27,22 +27,23 @@
     <uses-feature
         android:name="android.hardware.vulkan.level"
         android:required="false"
-        android:version="0" />
+        android:version="0"
+    />
 
     <uses-feature
         android:name="android.hardware.vulkan.version"
         android:required="false"
-        android:version="0x00401000" />
+        android:version="0x00401000"
+    />
 
     <!-- GPU hardware acceleration is required for wgpu rendering. -->
-    <uses-feature
-        android:glEsVersion="0x00030000"
-        android:required="true" />
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
 
     <!-- Touchscreen support (virtually all Android devices). -->
     <uses-feature
         android:name="android.hardware.touchscreen"
-        android:required="false" />
+        android:required="false"
+    />
 
     <application
         android:allowBackup="false"
@@ -51,7 +52,8 @@
         android:label="GPUI Mobile Example"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        android:theme="@style/GpuiTheme"
+    >
 
         <!--
           NativeActivity — the Android framework loads the specified native
@@ -67,13 +69,15 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="unspecified"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            android:theme="@style/GpuiTheme"
+        >
 
             <!-- The native library name WITHOUT the "lib" prefix and ".so" suffix.
                  This is set via manifestPlaceholders in build.gradle.kts. -->
             <meta-data
                 android:name="android.app.lib_name"
-                android:value="${nativeLibraryName}" />
+                android:value="${nativeLibraryName}"
+            />
 
             <!-- Mark this activity as the main launcher entry point. -->
             <intent-filter>

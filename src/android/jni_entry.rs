@@ -800,6 +800,20 @@ pub fn run_event_loop(app: &AndroidApp) {
                     }
 
                     init_window_done = true;
+
+                    // Force an immediate first frame render right now,
+                    // rather than waiting for the next loop iteration
+                    // (~16 ms later).  This minimises the time the user
+                    // sees the theme's white splash background before
+                    // real GPUI content appears.
+                    platform.flush_main_thread_tasks();
+                    if let Some(win) = platform.primary_window() {
+                        log::info!(
+                            "run_event_loop: rendering first frame immediately (iteration={})",
+                            iteration,
+                        );
+                        win.request_frame();
+                    }
                 }
             }
         }
@@ -817,17 +831,26 @@ pub fn run_event_loop(app: &AndroidApp) {
         // during this iteration (e.g. by the background executor or
         // by GPUI internals) so they don't pile up until the next
         // looper wake.
+        //
+        // IMPORTANT: Only drive rendering AFTER `init_window_done`.
+        // Before that point the GPUI view hierarchy hasn't been set up
+        // (finish_launching hasn't run yet), so calling request_frame()
+        // would render an empty scene and present a blank/transparent
+        // frame — causing a visible flash on startup.  The Activity
+        // theme's `windowBackground` (white) covers the surface until
+        // the first real GPUI frame is drawn, and the draw guard in
+        // AndroidWindow::draw() skips empty scenes to avoid clearing
+        // the surface prematurely.
         if let Some(platform) = PLATFORM.get() {
             // Flush pending main-thread tasks first so that any
             // state changes (e.g. model updates, layout
             // invalidations) are applied before we paint.
             platform.flush_main_thread_tasks();
 
-            // Only drive rendering when the app is active / in the foreground.
-            // When backgrounded, the surface may be invalid and request_frame
-            // can block or panic.  We still flush main-thread tasks above so
-            // that pending work doesn't pile up.
-            if app_is_active {
+            // Only drive rendering when:
+            // 1. init_window_done — GPUI callbacks are wired up
+            // 2. app_is_active — surface is valid (not backgrounded)
+            if init_window_done && app_is_active {
                 if let Some(win) = platform.primary_window() {
                     let frame_start = std::time::Instant::now();
                     win.request_frame();

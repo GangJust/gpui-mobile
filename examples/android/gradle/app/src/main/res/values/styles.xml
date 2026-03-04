@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Application theme for the GPUI Mobile Android Example.
+
+  The key fix here is `android:windowBackground` set to white.  The old
+  theme (`Theme.NoTitleBar.Fullscreen`) used a black window background,
+  which caused a visible black flash on startup:
+
+    1. Activity starts → system shows the theme's windowBackground
+    2. Native surface is created → wgpu renderer initialises
+    3. First real GPUI frame is drawn
+
+  Between steps 1 and 3 the user saw black (the old theme's default).
+  By setting windowBackground to white we match the app's typical
+  content background, making the transition seamless.
+
+  We also keep all the fullscreen / no-title-bar flags from the
+  previous `Theme.NoTitleBar.Fullscreen` so the immersive experience
+  is preserved.
+-->
+<resources>
+
+    <!-- Base application theme for the GPUI example app. -->
+    <style name="GpuiTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+        <!-- Solid white background eliminates the black flash between the
+             system splash and the first rendered frame. -->
+        <item name="android:windowBackground">@android:color/white</item>
+
+        <!-- Keep the window opaque so the compositor doesn't blend with
+             whatever is behind us (avoids transparency flicker). -->
+        <item name="android:windowIsTranslucent">false</item>
+
+        <!-- Disable the default window enter/exit animations to prevent
+             the brief flicker where the desktop is visible during the
+             activity transition. -->
+        <item name="android:windowAnimationStyle">@null</item>
+
+        <!-- Ensure hardware acceleration for wgpu / Vulkan rendering. -->
+        <item name="android:hardwareAccelerated">true</item>
+
+        <!-- No title bar — we render our own UI chrome. -->
+        <item name="android:windowNoTitle">true</item>
+
+        <!-- Fullscreen — hide status bar. -->
+        <item name="android:windowFullscreen">true</item>
+
+        <!-- Disable default content transitions that could cause flicker. -->
+        <item name="android:windowContentTransitions">false</item>
+    </style>
+
+</resources>

@@ -473,7 +473,34 @@ impl AndroidWindow {
     /// natively consumes it without any type bridging.
     ///
     /// No-ops if the renderer is not available (surface lost).
+    ///
+    /// **Guard against empty scenes**: If the scene contains zero
+    /// primitives (no quads, shadows, paths, underlines, or sprites)
+    /// we skip the draw entirely.  The upstream `gpui_wgpu` renderer
+    /// clears the surface to transparent/black before drawing, so
+    /// presenting an empty scene produces a visible flash where all
+    /// content disappears for one frame.  This commonly happens:
+    ///
+    /// - During the first few event-loop iterations before GPUI has
+    ///   finished building the view tree.
+    /// - When the surface is reconfigured after a Lost/Outdated error
+    ///   and the next frame callback produces an empty scene.
+    /// - Intermittently during fast scrolling if the layout pass
+    ///   hasn't produced new content yet.
     pub fn draw(&self, scene: &gpui::Scene) {
+        // Skip the draw when the scene has zero quads.  Every GPUI view
+        // produces at least one background quad, so an empty quads list
+        // means the view tree hasn't been built yet (or layout produced
+        // nothing).  Drawing such a scene would clear the surface to the
+        // renderer's default background (transparent/black) and present
+        // a blank frame — causing the visible flash on startup and the
+        // intermittent text flicker during scrolling when a layout pass
+        // occasionally produces an empty scene between content frames.
+        if scene.quads.is_empty() {
+            log::trace!("AndroidWindow::draw — skipping empty scene (no quads)");
+            return;
+        }
+
         let mut state = self.state.lock();
         if let Some(renderer) = state.renderer.as_mut() {
             renderer.draw(scene);
