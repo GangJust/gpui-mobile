@@ -300,7 +300,7 @@ pub fn platform() -> Option<&'static Arc<AndroidPlatform>> {
 /// This is the value you hand to `Application::with_platform(...)`:
 ///
 /// ```rust,no_run
-/// let platform = jni_entry::shared_platform().unwrap();
+/// let platform = jni::shared_platform().unwrap();
 /// Application::with_platform(platform.into_rc()).run(|cx| { … });
 /// ```
 ///
