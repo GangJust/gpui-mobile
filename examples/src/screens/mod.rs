@@ -24,7 +24,7 @@ use gpui::{
     div, point, prelude::*, px, rgb, size, Bounds, Context, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, SharedString, Window,
 };
-use gpui_mobile::components::material::{MaterialTheme, NavigationBarBuilder, TopAppBar};
+use gpui_mobile::components::material::{MaterialTheme, NavigationBarBuilder, TextField, TopAppBar};
 use gpui_mobile::{set_system_chrome, StatusBarContentStyle, SystemChromeStyle};
 
 // ── Screen enum ──────────────────────────────────────────────────────────────
@@ -151,10 +151,10 @@ pub struct FormState {
     pub experience: f32,
     pub terms_accepted: bool,
     pub newsletter: bool,
-    // Text input fields
-    pub full_name: String,
-    pub email: String,
-    pub phone: String,
+    // Text input fields (with cursor/selection state)
+    pub full_name: TextField,
+    pub email: TextField,
+    pub phone: TextField,
     /// Which field is currently focused (None = no field focused).
     pub focused_field: Option<u8>, // 0=name, 1=email, 2=phone
 }
@@ -170,9 +170,9 @@ impl Default for FormState {
             experience: 0.3,
             terms_accepted: false,
             newsletter: false,
-            full_name: "Jane Doe".to_string(),
-            email: "jane@example.com".to_string(),
-            phone: "+1 (555) 123-4567".to_string(),
+            full_name: TextField::new("Jane Doe"),
+            email: TextField::new("jane@example.com"),
+            phone: TextField::new("+1 (555) 123-4567"),
             focused_field: None,
         }
     }
@@ -236,12 +236,14 @@ impl Router {
 
         #[cfg(target_os = "ios")]
         {
-            // TODO: Query safe area insets from the iOS platform once
-            // IosWindow exposes them (status bar, home indicator, notch).
-            // For now, provide sensible defaults for modern iPhones.
+            let (top, bottom, left, right) = gpui_mobile::safe_area_insets();
+            if top > 0.0 || bottom > 0.0 {
+                return SafeArea { top, bottom, left, right };
+            }
+            // Fallback for before the window is ready
             return SafeArea {
-                top: 59.0,    // status bar + notch
-                bottom: 34.0, // home indicator
+                top: 59.0,
+                bottom: 34.0,
                 left: 0.0,
                 right: 0.0,
             };
@@ -257,6 +259,9 @@ impl Router {
             // Dismiss keyboard when leaving the form screen
             if self.form.focused_field.is_some() {
                 self.form.focused_field = None;
+                self.form.full_name.selection = None;
+                self.form.email.selection = None;
+                self.form.phone.selection = None;
                 gpui_mobile::hide_keyboard();
                 gpui_mobile::set_text_input_callback(None);
             }
@@ -288,6 +293,9 @@ impl Router {
             // Dismiss keyboard when navigating back
             if self.form.focused_field.is_some() {
                 self.form.focused_field = None;
+                self.form.full_name.selection = None;
+                self.form.email.selection = None;
+                self.form.phone.selection = None;
                 gpui_mobile::hide_keyboard();
                 gpui_mobile::set_text_input_callback(None);
             }
@@ -454,6 +462,9 @@ impl Router {
                 cx.listener(|this, _event: &MouseDownEvent, _window, cx| {
                     if this.form.focused_field.is_some() {
                         this.form.focused_field = None;
+                        this.form.full_name.selection = None;
+                        this.form.email.selection = None;
+                        this.form.phone.selection = None;
                         gpui_mobile::hide_keyboard();
                         gpui_mobile::set_text_input_callback(None);
                         cx.notify();

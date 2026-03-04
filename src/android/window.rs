@@ -1495,6 +1495,26 @@ impl PlatformWindow for AndroidPlatformWindow {
                     android_key_to_keystroke, AKEY_EVENT_ACTION_DOWN, AKEY_EVENT_ACTION_UP,
                 };
 
+                // On KeyDown, dispatch text through the global callback so
+                // custom TextInput components (PENDING_TEXT) receive it.
+                if key_event.action == AKEY_EVENT_ACTION_DOWN {
+                    match key_event.key_code {
+                        67 => crate::dispatch_text_input("\x08"),   // KEYCODE_DEL (backspace)
+                        21 => crate::dispatch_text_input("\x1b[D"), // DPAD_LEFT
+                        22 => crate::dispatch_text_input("\x1b[C"), // DPAD_RIGHT
+                        122 => crate::dispatch_text_input("\x1b[H"), // MOVE_HOME
+                        123 => crate::dispatch_text_input("\x1b[F"), // MOVE_END
+                        _ => {
+                            if key_event.unicode_char != 0 {
+                                if let Some(c) = char::from_u32(key_event.unicode_char) {
+                                    let s = c.to_string();
+                                    crate::dispatch_text_input(&s);
+                                }
+                            }
+                        }
+                    };
+                }
+
                 let keystroke = match android_key_to_keystroke(
                     key_event.key_code,
                     key_event.meta_state,

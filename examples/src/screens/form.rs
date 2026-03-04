@@ -1,7 +1,7 @@
 //! Form example screen — demonstrates Material Design 3 input components
 //! composed into a realistic form layout with interactive state.
 
-use gpui::{div, prelude::*, px, rgb, Context};
+use gpui::{div, prelude::*, px, rgb, Context, MouseDownEvent};
 use gpui_mobile::components::material::{
     Card, Checkbox, CircularProgressIndicator, FilledButton, MaterialTheme, OutlinedButton, Radio,
     RadioGroup, Slider, Switch, TextButton, TextInput,
@@ -13,11 +13,14 @@ use super::Router;
 
 thread_local! {
     /// Pending text from the software keyboard, accumulated between frames.
-    /// Each entry is a string fragment (or "\x08" for backspace).
+    /// Each entry is a string fragment (or "\x08" for backspace, "\x1b[D" etc. for cursor).
     static PENDING_TEXT: RefCell<Vec<String>> = RefCell::new(Vec::new());
 
     /// Which field was tapped (set by on_tap_notify, consumed in drain_pending_text).
     static TAPPED_FIELD: RefCell<Option<u8>> = RefCell::new(None);
+
+    /// X coordinate of the last tap on a text field (for cursor positioning).
+    static TAPPED_X: RefCell<Option<f32>> = RefCell::new(None);
 }
 
 /// Install the keyboard callback that pushes typed text into PENDING_TEXT.
@@ -29,13 +32,31 @@ fn install_keyboard_callback() {
     })));
 }
 
+/// Approximate average character width in logical pixels for tap-to-cursor.
+const AVG_CHAR_WIDTH: f32 = 8.0;
+/// Approximate left padding of the text within the input field.
+const TEXT_START_X: f32 = 12.0;
+
 /// Drain pending keyboard text and apply it to the Router's focused field.
-/// Also processes pending field-tap signals.
+/// Also processes pending field-tap signals and tap-to-position.
 pub fn drain_pending_text(router: &mut Router) {
     // Apply any pending field focus from on_tap_notify
     TAPPED_FIELD.with(|field| {
         if let Some(idx) = field.borrow_mut().take() {
             router.form.focused_field = Some(idx);
+        }
+    });
+
+    // Process tap position for cursor placement
+    TAPPED_X.with(|x_cell| {
+        if let Some(x) = x_cell.borrow_mut().take() {
+            let field = match router.form.focused_field {
+                Some(0) => &mut router.form.full_name,
+                Some(1) => &mut router.form.email,
+                Some(2) => &mut router.form.phone,
+                _ => return,
+            };
+            field.set_cursor_from_x(x, TEXT_START_X, AVG_CHAR_WIDTH);
         }
     });
 
@@ -48,11 +69,13 @@ pub fn drain_pending_text(router: &mut Router) {
                 Some(2) => &mut router.form.phone,
                 _ => continue,
             };
-            if text == "\x08" {
-                // Backspace
-                field.pop();
-            } else {
-                field.push_str(&text);
+            match text.as_str() {
+                "\x08" => field.delete_at_cursor(),
+                "\x1b[D" => field.move_cursor_left(),
+                "\x1b[C" => field.move_cursor_right(),
+                "\x1b[H" => field.move_cursor_to_start(),
+                "\x1b[F" => field.move_cursor_to_end(),
+                other => field.insert_at_cursor(other),
             }
         }
     });
@@ -122,13 +145,16 @@ pub fn render(router: &mut Router, cx: &mut Context<Router>) -> impl IntoElement
                         .child(
                             TextInput::<Router>::new("input-name", theme)
                                 .label("Full Name")
-                                .value(&form.full_name)
+                                .value(&form.full_name.text)
+                                .cursor(form.full_name.cursor)
+                                .selection(form.full_name.normalized_selection())
                                 .placeholder("Enter your name")
                                 .keyboard_type(KeyboardType::Default)
                                 .focused(form.focused_field == Some(0))
-                                .on_tap_notify(|| {
+                                .on_tap_notify(|event: &MouseDownEvent| {
                                     log::info!("Form: name field tapped");
                                     TAPPED_FIELD.with(|f| *f.borrow_mut() = Some(0));
+                                    TAPPED_X.with(|x| *x.borrow_mut() = Some(event.position.x.as_f32()));
                                     install_keyboard_callback();
                                     gpui_mobile::show_keyboard_with_type(KeyboardType::Default);
                                 })
@@ -137,13 +163,16 @@ pub fn render(router: &mut Router, cx: &mut Context<Router>) -> impl IntoElement
                         .child(
                             TextInput::<Router>::new("input-email", theme)
                                 .label("Email")
-                                .value(&form.email)
+                                .value(&form.email.text)
+                                .cursor(form.email.cursor)
+                                .selection(form.email.normalized_selection())
                                 .placeholder("user@example.com")
                                 .keyboard_type(KeyboardType::EmailAddress)
                                 .focused(form.focused_field == Some(1))
-                                .on_tap_notify(|| {
+                                .on_tap_notify(|event: &MouseDownEvent| {
                                     log::info!("Form: email field tapped");
                                     TAPPED_FIELD.with(|f| *f.borrow_mut() = Some(1));
+                                    TAPPED_X.with(|x| *x.borrow_mut() = Some(event.position.x.as_f32()));
                                     install_keyboard_callback();
                                     gpui_mobile::show_keyboard_with_type(KeyboardType::EmailAddress);
                                 })
@@ -152,13 +181,16 @@ pub fn render(router: &mut Router, cx: &mut Context<Router>) -> impl IntoElement
                         .child(
                             TextInput::<Router>::new("input-phone", theme)
                                 .label("Phone")
-                                .value(&form.phone)
+                                .value(&form.phone.text)
+                                .cursor(form.phone.cursor)
+                                .selection(form.phone.normalized_selection())
                                 .placeholder("+1 (555) 000-0000")
                                 .keyboard_type(KeyboardType::Phone)
                                 .focused(form.focused_field == Some(2))
-                                .on_tap_notify(|| {
+                                .on_tap_notify(|event: &MouseDownEvent| {
                                     log::info!("Form: phone field tapped");
                                     TAPPED_FIELD.with(|f| *f.borrow_mut() = Some(2));
+                                    TAPPED_X.with(|x| *x.borrow_mut() = Some(event.position.x.as_f32()));
                                     install_keyboard_callback();
                                     gpui_mobile::show_keyboard_with_type(KeyboardType::Phone);
                                 })
@@ -472,4 +504,3 @@ fn section_header(label: &str, color: u32) -> impl IntoElement {
         .text_color(rgb(color))
         .child(label.to_string())
 }
-

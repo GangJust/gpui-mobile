@@ -8,3 +8,5 @@
 - Provide inbuilt routing/navigation solution ?
 - Maps?
 - In-app purchases?
+- Assets management?
+- Google Fonts?

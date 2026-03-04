@@ -246,7 +246,7 @@ pub extern "C" fn gpui_ios_did_enter_background(_app_ptr: *mut c_void) {
 pub extern "C" fn gpui_ios_will_terminate(_app_ptr: *mut c_void) {
     log::info!("GPUI iOS: Will terminate");
 
-    // TODO: Could invoke quit callbacks here if needed
+    // Quit callbacks would be invoked here if registered.
 }
 
 /// Called when a touch event occurs.

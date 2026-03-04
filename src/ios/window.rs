@@ -822,6 +822,36 @@ impl IosWindow {
         self.touch_state.set(ts);
     }
 
+    /// Query the safe area insets from the UIView.
+    ///
+    /// Returns `(top, bottom, left, right)` in logical points.
+    /// These represent the areas occupied by system UI (status bar,
+    /// home indicator, camera notch) that content should avoid.
+    pub fn safe_area_insets(&self) -> (f32, f32, f32, f32) {
+        if self.view.is_null() {
+            return (0.0, 0.0, 0.0, 0.0);
+        }
+        unsafe {
+            // UIEdgeInsets { top, left, bottom, right } — all CGFloat
+            #[repr(C)]
+            #[derive(Debug, Clone, Copy)]
+            struct UIEdgeInsets {
+                top: f64,
+                left: f64,
+                bottom: f64,
+                right: f64,
+            }
+
+            let insets: UIEdgeInsets = msg_send![self.view, safeAreaInsets];
+            (
+                insets.top as f32,
+                insets.bottom as f32,
+                insets.left as f32,
+                insets.right as f32,
+            )
+        }
+    }
+
     /// Advance the momentum scroller by one frame and emit a synthetic
     /// `ScrollWheel` event if the fling is still active.
     ///
@@ -1021,6 +1051,18 @@ impl IosWindow {
             modifiers,
             is_key_down
         );
+
+        // On key-down, dispatch cursor-movement control codes through the
+        // global text input callback so TextField-based components receive them.
+        if is_key_down {
+            match key_code {
+                0x50 => { crate::dispatch_text_input("\x1b[D"); } // Left arrow
+                0x4F => { crate::dispatch_text_input("\x1b[C"); } // Right arrow
+                0x4A => { crate::dispatch_text_input("\x1b[H"); } // Home
+                0x4D => { crate::dispatch_text_input("\x1b[F"); } // End
+                _ => {}
+            }
+        }
 
         let event = if is_key_down {
             key_code_to_key_down(key_code, modifier_flags)

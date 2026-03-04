@@ -252,6 +252,31 @@ pub fn hide_keyboard() {
     {}
 }
 
+// ── Safe area insets ─────────────────────────────────────────────────────────
+
+/// Query the safe area insets from the platform.
+///
+/// Returns `(top, bottom, left, right)` in logical points.
+/// On iOS this queries `safeAreaInsets` from the UIView.
+/// On Android use the `AndroidWindow::safe_area_insets_logical()` method instead.
+/// On unsupported platforms returns zeros.
+pub fn safe_area_insets() -> (f32, f32, f32, f32) {
+    #[cfg(target_os = "ios")]
+    {
+        if let Some(wrapper) = ios::ffi::IOS_WINDOW_LIST.get() {
+            unsafe {
+                let windows = &*wrapper.0.get();
+                if let Some(&window) = windows.last() {
+                    return (*window).safe_area_insets();
+                }
+            }
+        }
+    }
+    #[cfg(not(target_os = "ios"))]
+    {}
+    (0.0, 0.0, 0.0, 0.0)
+}
+
 // ── platform modules ─────────────────────────────────────────────────────────
 
 #[cfg(target_os = "ios")]

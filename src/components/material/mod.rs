@@ -125,6 +125,7 @@ pub mod fab;
 
 // ── Form controls ────────────────────────────────────────────────────────────
 pub mod controls;
+pub mod text_field;
 pub mod text_fields;
 pub mod text_input;
 
@@ -208,6 +209,7 @@ pub use menu::{Menu, MenuAnchor};
 pub use progress_indicator::{CircularProgressIndicator, LinearProgressIndicator};
 pub use search_bar::{SearchBar, SearchView};
 pub use snackbar::snackbar;
+pub use text_field::TextField;
 pub use text_input::TextInput;
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -1,11 +1,26 @@
 //! Material Design 3 interactive text input component.
 //!
 //! Provides an outlined text field that shows the software keyboard on tap,
-//! receives text input, and displays the current value with a cursor.
+//! receives text input, and displays the current value with a cursor that
+//! can be positioned within the text.
 
 use gpui::{div, prelude::*, px, rgb, ElementId, MouseButton, MouseDownEvent};
 
 use super::theme::MaterialTheme;
+
+/// Blend two RGB colors. `t` is 0.0–1.0 where 0.0 = `a`, 1.0 = `b`.
+fn blend_rgb(a: u32, b: u32, t: f32) -> u32 {
+    let ar = ((a >> 16) & 0xFF) as f32;
+    let ag = ((a >> 8) & 0xFF) as f32;
+    let ab = (a & 0xFF) as f32;
+    let br = ((b >> 16) & 0xFF) as f32;
+    let bg = ((b >> 8) & 0xFF) as f32;
+    let bb = (b & 0xFF) as f32;
+    let r = (ar + (br - ar) * t) as u32;
+    let g = (ag + (bg - ag) * t) as u32;
+    let b_val = (ab + (bb - ab) * t) as u32;
+    (r << 16) | (g << 8) | b_val
+}
 
 /// An interactive Material Design 3 text input field.
 ///
@@ -20,10 +35,9 @@ use super::theme::MaterialTheme;
 ///     .label("Email")
 ///     .value(&self.email)
 ///     .placeholder("user@example.com")
-///     .on_change(cx.listener(|this, text: &String, _, cx| {
-///         this.email = text.clone();
-///         cx.notify();
-///     }))
+///     .cursor(field.cursor)
+///     .selection(field.normalized_selection())
+///     .on_tap_notify(|event| { /* handle tap with position */ })
 /// ```
 pub struct TextInput<V: 'static> {
     id: ElementId,
@@ -35,11 +49,11 @@ pub struct TextInput<V: 'static> {
     error_text: Option<&'static str>,
     focused: bool,
     keyboard_type: crate::KeyboardType,
+    cursor_position: usize,
+    selection: Option<(usize, usize)>,
     on_tap: Option<Box<dyn Fn(&mut V, &MouseDownEvent, &mut gpui::Window, &mut gpui::Context<V>)>>,
-    /// Simple tap callback that does NOT lease the parent entity.
-    /// Use this instead of `on_tap` when the parent has other `cx.listener`
-    /// handlers to avoid entity lease conflicts in GPUI.
-    on_tap_simple: Option<std::rc::Rc<dyn Fn()>>,
+    /// Simple tap callback that receives the MouseDownEvent for tap position.
+    on_tap_simple: Option<std::rc::Rc<dyn Fn(&MouseDownEvent)>>,
 }
 
 impl<V: 'static> TextInput<V> {
@@ -55,6 +69,8 @@ impl<V: 'static> TextInput<V> {
             error_text: None,
             focused: false,
             keyboard_type: crate::KeyboardType::Default,
+            cursor_position: 0,
+            selection: None,
             on_tap: None,
             on_tap_simple: None,
         }
@@ -102,6 +118,18 @@ impl<V: 'static> TextInput<V> {
         self
     }
 
+    /// Set the cursor byte offset within the text.
+    pub fn cursor(mut self, position: usize) -> Self {
+        self.cursor_position = position;
+        self
+    }
+
+    /// Set the normalized selection range `(min, max)` in byte offsets.
+    pub fn selection(mut self, sel: Option<(usize, usize)>) -> Self {
+        self.selection = sel;
+        self
+    }
+
     /// Set a callback for when the field is tapped.
     ///
     /// The callback should call `gpui_mobile::show_keyboard()` and set
@@ -114,19 +142,16 @@ impl<V: 'static> TextInput<V> {
         self
     }
 
-    /// Set a simple tap callback that does NOT lease the parent entity.
-    ///
-    /// Use this instead of `on_tap` to avoid entity lease conflicts when
-    /// the parent view has other `cx.listener` handlers (e.g. pull-to-refresh).
-    /// The callback should set thread-local state and call `cx.notify()`
-    /// separately.
-    pub fn on_tap_notify(mut self, handler: impl Fn() + 'static) -> Self {
+    /// Set a simple tap callback that receives the `MouseDownEvent` for tap
+    /// position. Does NOT lease the parent entity — use this instead of
+    /// `on_tap` to avoid entity lease conflicts.
+    pub fn on_tap_notify(mut self, handler: impl Fn(&MouseDownEvent) + 'static) -> Self {
         self.on_tap_simple = Some(std::rc::Rc::new(handler));
         self
     }
 
     /// Build the element. Must be called with a context to wire up event handlers.
-    pub fn render(self, cx: &mut gpui::Context<V>) -> impl IntoElement {
+    pub fn render(mut self, cx: &mut gpui::Context<V>) -> impl IntoElement {
         let t = self.theme;
         let border_color = if self.error {
             t.error
@@ -144,11 +169,6 @@ impl<V: 'static> TextInput<V> {
         };
 
         let has_value = !self.value.is_empty();
-        let display_text = if has_value {
-            self.value.clone()
-        } else {
-            self.placeholder.to_string()
-        };
         let text_color = if has_value {
             t.on_surface
         } else {
@@ -188,25 +208,42 @@ impl<V: 'static> TextInput<V> {
             input_box = input_box.border_1();
         }
 
-        // Text content with cursor
-        let mut text_row = div()
-            .flex()
-            .flex_row()
-            .items_center()
-            .text_sm()
-            .text_color(rgb(text_color))
-            .child(display_text);
+        // Text content with cursor/selection
+        let cursor_pos = self.cursor_position;
+        let selection = self.selection;
+        let value = std::mem::take(&mut self.value);
+        let focused = self.focused;
+        let placeholder = self.placeholder;
 
-        // Show blinking cursor when focused
-        if self.focused {
-            text_row = text_row.child(
-                div()
-                    .w(px(2.0))
-                    .h(px(16.0))
-                    .bg(rgb(t.primary))
-                    .ml_px(),
-            );
-        }
+        let text_row = if has_value && focused {
+            Self::render_text_with_cursor_static(&value, cursor_pos, selection, text_color, t)
+        } else {
+            // No value or not focused — show placeholder or plain text
+            let display_text = if has_value {
+                value.clone()
+            } else {
+                placeholder.to_string()
+            };
+            let mut row = div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .text_sm()
+                .text_color(rgb(text_color))
+                .child(display_text);
+
+            // Show cursor at end when focused on empty field
+            if focused {
+                row = row.child(
+                    div()
+                        .w(px(2.0))
+                        .h(px(16.0))
+                        .bg(rgb(t.primary))
+                        .ml_px(),
+                );
+            }
+            row
+        };
 
         input_box = input_box.child(text_row);
 
@@ -215,9 +252,9 @@ impl<V: 'static> TextInput<V> {
             let handler_clone = handler.clone();
             input_box = input_box.on_mouse_down(
                 MouseButton::Left,
-                move |_event: &MouseDownEvent, _window: &mut gpui::Window, _cx: &mut gpui::App| {
+                move |event: &MouseDownEvent, _window: &mut gpui::Window, _cx: &mut gpui::App| {
                     log::info!("TextInput: on_tap_simple handler firing");
-                    (handler_clone)();
+                    (handler_clone)(event);
                 },
             );
         } else if let Some(on_tap) = self.on_tap {
@@ -246,5 +283,102 @@ impl<V: 'static> TextInput<V> {
         }
 
         field
+    }
+
+    /// Render the text split around the cursor position, with optional
+    /// selection highlighting.
+    fn render_text_with_cursor_static(
+        value: &str,
+        cursor_position: usize,
+        selection: Option<(usize, usize)>,
+        text_color: u32,
+        t: MaterialTheme,
+    ) -> gpui::Div {
+        let cursor_pos = cursor_position.min(value.len());
+
+        if let Some((sel_min, sel_max)) = selection {
+            // Clamp selection to text length
+            let sel_min = sel_min.min(value.len());
+            let sel_max = sel_max.min(value.len());
+
+            let before_sel = &value[..sel_min];
+            let selected = &value[sel_min..sel_max];
+            let after_sel = &value[sel_max..];
+
+            // Selection highlight color: blend primary at 30% with surface
+            let highlight_bg = blend_rgb(t.surface, t.primary, 0.3);
+
+            let mut row = div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .text_sm()
+                .text_color(rgb(text_color));
+
+            if !before_sel.is_empty() {
+                row = row.child(
+                    div().child(before_sel.to_string()),
+                );
+            }
+
+            if !selected.is_empty() {
+                row = row.child(
+                    div()
+                        .bg(rgb(highlight_bg))
+                        .rounded_sm()
+                        .px(px(1.0))
+                        .child(selected.to_string()),
+                );
+            }
+
+            // Cursor bar at selection edge
+            row = row.child(
+                div()
+                    .w(px(2.0))
+                    .h(px(16.0))
+                    .bg(rgb(t.primary)),
+            );
+
+            if !after_sel.is_empty() {
+                row = row.child(
+                    div().child(after_sel.to_string()),
+                );
+            }
+
+            row
+        } else {
+            // No selection — split text at cursor
+            let before = &value[..cursor_pos];
+            let after = &value[cursor_pos..];
+
+            let mut row = div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .text_sm()
+                .text_color(rgb(text_color));
+
+            if !before.is_empty() {
+                row = row.child(
+                    div().child(before.to_string()),
+                );
+            }
+
+            // Cursor bar
+            row = row.child(
+                div()
+                    .w(px(2.0))
+                    .h(px(16.0))
+                    .bg(rgb(t.primary)),
+            );
+
+            if !after.is_empty() {
+                row = row.child(
+                    div().child(after.to_string()),
+                );
+            }
+
+            row
+        }
     }
 }
