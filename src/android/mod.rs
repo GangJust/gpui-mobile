@@ -1,7 +1,5 @@
 //! Android platform implementation for GPUI.
 //!
-//! Re-exports core GPUI geometry types so sub-modules can `use super::*`.
-//!
 //! This module wires together all Android-specific sub-modules and exposes the
 //! single public entry-point `current_platform()`, mirroring the structure of
 //! `gpui_linux::linux`.
@@ -9,14 +7,17 @@
 //! ## Architecture
 //!
 //! ```text
-//! AndroidPlatform          (platform.rs)
-//!   ├── AndroidDispatcher  (dispatcher.rs)
-//!   ├── AndroidWindow      (window.rs)
-//!   │     └── WgpuRenderer (renderer.rs)
-//!   ├── AndroidDisplay     (display.rs)
-//!   ├── CosmicTextSystem   (text.rs)
-//!   └── WgpuAtlas          (atlas.rs)
+//! AndroidPlatform             (platform.rs)
+//!   ├── AndroidDispatcher     (dispatcher.rs)
+//!   ├── AndroidWindow         (window.rs)
+//!   │     └── gpui_wgpu::WgpuRenderer
+//!   ├── AndroidDisplay        (display.rs)
+//!   ├── gpui_wgpu::CosmicTextSystem
+//!   └── jni_entry             (jni_entry.rs) — event loop + lifecycle
 //! ```
+//!
+//! GPU rendering and text shaping are delegated to the upstream `gpui_wgpu`
+//! crate which provides `WgpuRenderer`, `WgpuContext`, and `CosmicTextSystem`.
 //!
 //! The JNI / ANativeActivity entry-points live in `jni_entry.rs` and are the
 //! first Rust code that executes when the Android runtime loads the `.so`.
@@ -36,22 +37,14 @@
 //! etc.  It also depends on `gpui_wgpu` for the wgpu-based renderer and
 //! cosmic-text system.
 //!
-//! ## Feature flags
-//!
-//! | flag       | effect                                        |
-//! |------------|-----------------------------------------------|
-//! | `font-kit` | enables `font-kit` based font matching        |
-//!
 //! This module is only compiled when `target_os = "android"`.
 
 // ── geometry types ───────────────────────────────────────────────────────────
 //
 // The real `gpui::Pixels` has a `pub(crate)` inner field that is inaccessible
-// outside the `gpui` crate, so the rendering code cannot use `.0` on it.
+// outside the `gpui` crate, so platform code cannot use `.0` on it.
 // We define local geometry stubs here with fully public inner fields.
 // Sub-modules import them via `use super::*`.
-// Conversions between local stubs and canonical GPUI types happen at the
-// platform boundary (`platform.rs`).
 
 /// A logical pixel value (CSS px).  Public inner field unlike `gpui::Pixels`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
@@ -156,14 +149,11 @@ pub fn size<T>(width: T, height: T) -> Size<T> {
 
 // ── sub-modules ──────────────────────────────────────────────────────────────
 
-pub mod atlas;
 pub mod dispatcher;
 pub mod display;
 pub mod jni_entry;
 pub mod keyboard;
 pub mod platform;
-pub mod renderer;
-pub mod text;
 pub mod window;
 
 // ── public re-exports ─────────────────────────────────────────────────────────
@@ -172,8 +162,6 @@ pub use dispatcher::AndroidDispatcher;
 pub use display::AndroidDisplay;
 pub use keyboard::*;
 pub use platform::{AndroidPlatform, SharedPlatform};
-pub use renderer::WgpuRenderer;
-pub use text::AndroidTextSystem;
 pub use window::{AndroidPlatformWindow, AndroidWindow, SafeAreaInsets};
 
 // ── platform entry-point (mirrors gpui_linux::current_platform) ───────────────
