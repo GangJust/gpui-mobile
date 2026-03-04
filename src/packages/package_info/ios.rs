@@ -1,0 +1,58 @@
+use super::PackageInfo;
+use objc::{class, msg_send, sel, sel_impl};
+use objc::runtime::Object;
+use std::ffi::CStr;
+
+pub fn get_package_info() -> Result<PackageInfo, String> {
+    unsafe {
+        let bundle: *mut Object = msg_send![class!(NSBundle), mainBundle];
+        if bundle.is_null() {
+            return Err("Failed to get NSBundle.mainBundle".into());
+        }
+
+        let info_dict: *mut Object = msg_send![bundle, infoDictionary];
+        if info_dict.is_null() {
+            return Err("Failed to get infoDictionary".into());
+        }
+
+        let app_name = nsdict_string(info_dict, "CFBundleDisplayName")
+            .or_else(|| nsdict_string(info_dict, "CFBundleName"))
+            .unwrap_or_default();
+
+        let package_name = nsdict_string(info_dict, "CFBundleIdentifier")
+            .unwrap_or_default();
+
+        let version = nsdict_string(info_dict, "CFBundleShortVersionString")
+            .unwrap_or_default();
+
+        let build_number = nsdict_string(info_dict, "CFBundleVersion")
+            .unwrap_or_default();
+
+        Ok(PackageInfo {
+            app_name,
+            package_name,
+            version,
+            build_number,
+        })
+    }
+}
+
+unsafe fn nsdict_string(dict: *mut Object, key: &str) -> Option<String> {
+    let key_nsstring = nsstring(key);
+    let value: *mut Object = msg_send![dict, objectForKey: key_nsstring];
+    if value.is_null() {
+        return None;
+    }
+    let utf8: *const i8 = msg_send![value, UTF8String];
+    if utf8.is_null() {
+        return None;
+    }
+    Some(CStr::from_ptr(utf8).to_string_lossy().into_owned())
+}
+
+unsafe fn nsstring(s: &str) -> *mut Object {
+    let ns_string: *mut Object = msg_send![class!(NSString), alloc];
+    msg_send![ns_string, initWithBytes: s.as_ptr()
+                         length: s.len()
+                         encoding: 4u64] // NSUTF8StringEncoding
+}

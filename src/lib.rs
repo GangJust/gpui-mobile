@@ -73,6 +73,7 @@ pub use gpui;
 
 pub mod components;
 pub mod momentum;
+pub mod packages;
 
 // ── System chrome (status bar / navigation bar) styling ──────────────────────
 
