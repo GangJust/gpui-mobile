@@ -54,12 +54,6 @@ pub(crate) static IOS_WINDOW_LIST: OnceLock<WindowListWrapper> = OnceLock::new()
 /// Returns null if initialization fails.
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_ios_initialize() -> *mut c_void {
-    // Install a panic hook that writes to stderr — no ObjC calls to avoid re-panicking.
-    std::panic::set_hook(Box::new(|info| {
-        use std::io::Write;
-        let _ = writeln!(std::io::stderr(), "GPUI PANIC: {info}");
-    }));
-
     log::info!("GPUI iOS: Initializing");
 
     // Initialize the app state

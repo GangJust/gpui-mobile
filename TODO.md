@@ -1,4 +1,6 @@
 - Improve the UX of the APIs exposed by the library.
+- Orientation support (landscape/portrait).
+- Assitive technologies support (e.g., screen readers, voice control).
 - Performace optimizations.
 - Add more examples and documentation.
 - Essential packages used in the apps (e.g., connectivity, sensors, notifications, sharing, media playback). Port from the flutter ecosystem?

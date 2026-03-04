@@ -1,7 +1,7 @@
 We implement the basic packages used in the apps in the `src/packages` module (e.g., `src/packages/connectivity`, `src/packages/sensors`, etc.). Feature-gate each package. Visit the GitHub repo of each package, review the source code, and implement the complete functionality. Also check the example code to understand usage. Implement in the following order of priority:
 
 eg: src/packages/connectivity/mod.rs,android/,ios/ etc., we can have a common interface in mod.rs and platform-specific implementations in android/ and ios/ folders. The mod.rs file can use conditional compilation to include the appropriate platform-specific implementation based on the target platform.
-
+Create todos for each package implementation, and track progress in the `TODO.md` file.
 **Tier 1 — Core Utilities (foundational, used by almost every app)**
 
 1. https://pub.dev/packages/url_launcher

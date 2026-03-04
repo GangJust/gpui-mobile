@@ -143,9 +143,50 @@ fn android_main(app: android_activity::AndroidApp) {
 ///
 /// The symbol lives in the example crate's static lib which is force-loaded
 /// alongside `libgpui_mobile.a` by the Xcode linker.
+/// Minimal logger that routes Rust `log` crate messages through NSLog.
+#[cfg(target_os = "ios")]
+struct NsLogLogger;
+
+#[cfg(target_os = "ios")]
+impl log::Log for NsLogLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool { true }
+    fn log(&self, record: &log::Record) {
+        if self.enabled(record.metadata()) {
+            let msg = format!("[{}] {}: {}", record.level(), record.target(), record.args());
+            nslog(&msg);
+        }
+    }
+    fn flush(&self) {}
+}
+
+/// Call NSLog from Rust via raw FFI.
+#[cfg(target_os = "ios")]
+fn nslog(msg: &str) {
+    use objc::{class, msg_send, runtime::Object, sel, sel_impl};
+    unsafe {
+        extern "C" { fn NSLog(fmt: *mut Object, ...); }
+        let c_msg = std::ffi::CString::new(msg).unwrap_or_default();
+        let ns_msg: *mut Object = msg_send![class!(NSString), alloc];
+        let ns_msg: *mut Object = msg_send![ns_msg, initWithUTF8String: c_msg.as_ptr()];
+        let c_fmt = std::ffi::CString::new("%@").unwrap_or_default();
+        let ns_fmt: *mut Object = msg_send![class!(NSString), alloc];
+        let ns_fmt: *mut Object = msg_send![ns_fmt, initWithUTF8String: c_fmt.as_ptr()];
+        NSLog(ns_fmt, ns_msg);
+    }
+}
+
 #[cfg(target_os = "ios")]
 #[unsafe(no_mangle)]
 pub extern "C" fn gpui_ios_register_app() {
+    // Set up Rust logging → NSLog so log::info! etc. appear in devicectl --console.
+    let _ = log::set_logger(&NsLogLogger).map(|()| log::set_max_level(log::LevelFilter::Info));
+
+    // Panic hook → NSLog so panics are visible.
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("GPUI PANIC: {info}");
+        nslog(&msg);
+    }));
+
     gpui_mobile::ios::ffi::set_app_callback(Box::new(|cx: &mut App| {
         open_main_window(cx);
     }));

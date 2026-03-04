@@ -19,6 +19,9 @@ gpui-mobile = { path = ".." }
 gpui = { git = "https://github.com/zed-industries/zed", rev = "4dd42a0f77b11d0bed2a072919bcd9180b9a577c", package = "gpui", default-features = false }
 log = "0.4"
 
+[target.'cfg(target_os = "ios")'.dependencies]
+objc = "0.2"
+
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.13"
 android-activity = { version = "0.6", features = ["native-activity"] }

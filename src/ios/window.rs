@@ -831,18 +831,25 @@ impl IosWindow {
                 KeyboardType::URL => 3,           // UIKeyboardTypeURL
                 KeyboardType::Decimal => 8,       // UIKeyboardTypeDecimalPad
             };
+            log::info!("GPUI iOS: text_input_view={:p}, setKeyboardType: {}", self.text_input_view, kb_type);
+            if self.text_input_view.is_null() {
+                log::error!("GPUI iOS: text_input_view is NULL!");
+                return;
+            }
             let _: () = msg_send![self.text_input_view, setKeyboardType: kb_type];
-            let _: () = msg_send![self.text_input_view, setAutocorrectionType: 1_isize]; // UITextAutocorrectionTypeNo
-            let _: () = msg_send![self.text_input_view, setAutocapitalizationType: 0_isize]; // UITextAutocapitalizationTypeNone
+            log::info!("GPUI iOS: setAutocorrectionType");
+            let _: () = msg_send![self.text_input_view, setAutocorrectionType: 1_isize];
+            log::info!("GPUI iOS: setAutocapitalizationType");
+            let _: () = msg_send![self.text_input_view, setAutocapitalizationType: 0_isize];
+            log::info!("GPUI iOS: scheduling becomeFirstResponder");
 
             // Defer becomeFirstResponder to the next run-loop iteration.
-            // Using performSelector:withObject:afterDelay:0 schedules on the
-            // current run loop, avoiding re-entrance into GPUI dispatch.
             let _: () = msg_send![self.text_input_view,
                 performSelector: sel!(becomeFirstResponder)
                 withObject: ptr::null::<Object>()
                 afterDelay: 0.0_f64
             ];
+            log::info!("GPUI iOS: show_keyboard_with_type done");
         }
     }
 
