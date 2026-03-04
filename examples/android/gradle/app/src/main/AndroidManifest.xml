@@ -58,7 +58,7 @@
         <!--
           NativeActivity — the Android framework loads the specified native
           library and calls ANativeActivity_onCreate(), which is defined in
-          gpui_mobile::android::jni_entry.
+          gpui_mobile::android::jni.
 
           The spawned Rust thread then calls gpui_android_main() (defined in
           the android_app example) to start the application.

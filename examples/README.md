@@ -43,11 +43,11 @@ Android OS loads libgpui_mobile_example.so via NativeActivity
   └─ ANativeActivity_onCreate()           (android-activity crate)
        └─ android_main(app)               (main.rs — YOUR CODE)
             ├─ init logger + panic hook
-            ├─ jni_entry::init_platform(&app)
+            ├─ jni::init_platform(&app)
             │    └─ Creates AndroidPlatform + stores global state
             ├─ platform.set_on_init_window(callback)
             │    └─ Deferred — runs when native surface is ready
-            └─ jni_entry::run_event_loop(&app)
+            └─ jni::run_event_loop(&app)
                  │
                  ├─ poll_events (16ms timeout, ~60 fps)
                  │    └─ MainEvent::InitWindow
