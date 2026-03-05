@@ -66,6 +66,10 @@ static INIT_WINDOW_DONE: AtomicBool = AtomicBool::new(false);
 /// processes them AFTER `poll_events` returns.
 static PAUSE_PENDING: AtomicBool = AtomicBool::new(false);
 static RESUME_PENDING: AtomicBool = AtomicBool::new(false);
+static TERM_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
+static INIT_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
+static WINDOW_RESIZED_PENDING: AtomicBool = AtomicBool::new(false);
+static CONFIG_CHANGED_PENDING: AtomicBool = AtomicBool::new(false);
 
 use android_activity::{AndroidApp, MainEvent, PollEvent};
 
@@ -510,19 +514,8 @@ pub fn run_event_loop(app: &AndroidApp) {
     let mut last_heartbeat = std::time::Instant::now();
     let mut app_is_active = false;
 
-    let mut bg_diag_count: u32 = 0; // how many iterations since going to background
     loop {
         iteration += 1;
-
-        // When backgrounded, log the first few iterations to diagnose blocking.
-        if !app_is_active {
-            bg_diag_count += 1;
-            if bg_diag_count <= 20 || bg_diag_count % 250 == 0 {
-                log::info!("run_event_loop: bg diag #{} (iter={})", bg_diag_count, iteration);
-            }
-        } else {
-            bg_diag_count = 0;
-        }
 
         // Log a heartbeat every 5 seconds so we can tell if the loop is alive.
         let now = std::time::Instant::now();
@@ -545,12 +538,11 @@ pub fn run_event_loop(app: &AndroidApp) {
             platform.tick();
         }
 
-        // Poll for events — non-blocking (Duration::ZERO) to guarantee
-        // the loop never gets stuck in ALooper_pollAll, which can block
-        // indefinitely on some devices during lifecycle transitions.
-        // We do our own sleeping at the bottom of the loop instead.
-        let poll_start = std::time::Instant::now();
-        let pause_was_pending = PAUSE_PENDING.load(Ordering::Relaxed);
+        // ── Poll for events (non-blocking) ──
+        //
+        // Only set atomic flags inside the callback.  All heavy
+        // processing happens after poll_events returns, where it is
+        // safe to acquire locks and make JNI calls.
         app.poll_events(Some(Duration::ZERO), |event| {
             match event {
                 PollEvent::Main(main_event) => {
@@ -561,232 +553,48 @@ pub fn run_event_loop(app: &AndroidApp) {
                 _ => {}
             }
         });
-        let poll_elapsed = poll_start.elapsed();
-        // Log detailed diagnostics around Pause transition.
-        if PAUSE_PENDING.load(Ordering::Relaxed) && !pause_was_pending {
-            log::info!(
-                "run_event_loop: poll_events returned after Pause set (iter={}, took={:.0}ms)",
-                iteration,
-                poll_elapsed.as_secs_f64() * 1000.0,
-            );
-        }
-        if poll_elapsed > Duration::from_millis(100) {
-            log::warn!("run_event_loop: poll_events took {:.0}ms (iter={})", poll_elapsed.as_secs_f64() * 1000.0, iteration);
-        }
 
-        // Process deferred lifecycle state changes.
+        // ── Deferred lifecycle processing ──
         //
-        // These flags were set inside handle_main_event (within
-        // poll_events).  Now that poll_events has returned and the
-        // android-activity condvar synchronisation is released, it is
-        // safe to acquire the window state lock.
-        if PAUSE_PENDING.swap(false, Ordering::Relaxed) {
-            log::info!("run_event_loop: processing deferred PAUSE (iter={})", iteration);
+        // Between each handler, call poll_events again to drain any
+        // events the Java UI thread may have queued while we were
+        // processing.  This keeps the condvar wait short and prevents
+        // the InputDispatcher ANR (10s timeout on MotionEvent delivery).
+        //
+        // Helper closure to drain events quickly:
+        let drain_events = |app: &AndroidApp| {
+            app.poll_events(Some(Duration::ZERO), |event| {
+                if let PollEvent::Main(main_event) = event {
+                    handle_main_event(app, main_event);
+                }
+            });
+        };
+
+        // 1. TerminateWindow — unconfigure surface, release native window
+        if TERM_WINDOW_PENDING.swap(false, Ordering::Relaxed) {
+            log::info!("deferred: TerminateWindow (iter={})", iteration);
+            INIT_WINDOW_DONE.store(false, Ordering::Relaxed);
+            *LAST_CHROME_STYLE.lock().unwrap() = None;
             if let Some(platform) = PLATFORM.get() {
-                log::info!("run_event_loop: calling did_enter_background");
-                platform.did_enter_background();
-                log::info!("run_event_loop: did_enter_background done");
                 if let Some(win) = platform.primary_window() {
-                    log::info!("run_event_loop: got window, calling set_active(false)");
-                    win.set_active(false);
-                    log::info!("run_event_loop: set_active(false) returned");
+                    win.term_window();
                 }
             }
-            log::info!("run_event_loop: deferred PAUSE done (iter={})", iteration);
-        }
-        if RESUME_PENDING.swap(false, Ordering::Relaxed) {
-            log::info!("run_event_loop: processing deferred RESUME (iter={})", iteration);
-            if let Some(platform) = PLATFORM.get() {
-                platform.did_become_active();
-                if let Some(win) = platform.primary_window() {
-                    win.set_active(true);
-                }
-            }
-            log::info!("run_event_loop: deferred RESUME done (iter={})", iteration);
+            // Drain immediately — Java thread may be blocked on InitWindow condvar.
+            drain_events(app);
         }
 
-        // Track active/focused state so we can skip heavy work when backgrounded.
-        if let Some(platform) = PLATFORM.get() {
-            if let Some(win) = platform.primary_window() {
-                let is_active = win.is_active();
-                if is_active != app_is_active {
-                    log::info!(
-                        "run_event_loop: active state changed {} -> {} (iteration={})",
-                        app_is_active,
-                        is_active,
-                        iteration,
-                    );
-                    app_is_active = is_active;
-                }
-            }
-        }
-
-        // Process any pending input events.
-        process_input_events(app);
-
-        // Deferred initialisation callbacks.  Runs once, after the first
-        // loop iteration where a primary window exists.  By this point
-        // the GainedFocus / FocusEvent has already been consumed above.
-        //
-        // Two callbacks may be pending:
-        //
-        // 1. `finish_launching` — stored by `Platform::run` (called from
-        //    `Application::run`).  This is the GPUI finish-launching
-        //    callback that calls the user's `|cx| { cx.open_window(...) }`
-        //    closure.  Invoking it here (while `Platform::run` is still
-        //    blocking on the stack) keeps the `Rc<RefCell<AppContext>>`
-        //    alive so that weak references in GPUI callbacks remain valid
-        //    for the lifetime of the event loop.
-        //
-        // 2. `on_init_window` — an optional Android-specific callback
-        //    registered via `platform.set_on_init_window(...)`.  This is
-        //    for legacy / advanced use-cases where the caller wants to do
-        //    extra work when the window becomes available.
-        //
-        // Both are invoked at most once.
-        if !INIT_WINDOW_DONE.load(Ordering::Relaxed) {
-            if let Some(platform) = PLATFORM.get() {
-                if platform.primary_window().is_some() {
-                    // 1. Invoke the GPUI finish-launching callback first.
-                    //    This is the primary path: Application::run stored
-                    //    its callback via Platform::run, and we invoke it
-                    //    now that the window is ready.
-                    if let Some(finish_cb) = platform.take_finish_launching_callback() {
-                        log::info!(
-                            "run_event_loop: invoking finish_launching callback (iteration={})",
-                            iteration,
-                        );
-                        finish_cb();
-                        log::info!(
-                            "run_event_loop: finish_launching callback completed (iteration={})",
-                            iteration,
-                        );
-                    }
-
-                    // 2. Invoke the on_init_window callback (if any).
-                    if let Some(init_cb) = platform.take_on_init_window_callback() {
-                        let win = platform.primary_window().unwrap();
-                        log::info!(
-                            "run_event_loop: invoking on_init_window callback (iteration={})",
-                            iteration,
-                        );
-                        init_cb(win);
-                        log::info!(
-                            "run_event_loop: on_init_window callback completed (iteration={})",
-                            iteration,
-                        );
-                    }
-
-                    INIT_WINDOW_DONE.store(true, Ordering::Relaxed);
-
-                    // Force an immediate first frame render right now,
-                    // rather than waiting for the next loop iteration
-                    // (~16 ms later).  This minimises the time the user
-                    // sees the theme's white splash background before
-                    // real GPUI content appears.
-                    platform.flush_main_thread_tasks();
-                    if let Some(win) = platform.primary_window() {
-                        log::info!(
-                            "run_event_loop: rendering first frame immediately (iteration={})",
-                            iteration,
-                        );
-                        win.request_frame();
-                    }
-                }
-            }
-        }
-
-        // Drive the GPUI rendering pipeline.
-        //
-        // GPUI registers an `on_request_frame` callback on the
-        // PlatformWindow during `cx.open_window(...)`.  That callback
-        // triggers the layout → paint → draw cycle.  Without invoking
-        // `request_frame()` here the view is wired up but never
-        // actually rendered — producing a dark/blank window and
-        // eventually an ANR.
-        //
-        // We also flush any main-thread tasks that were dispatched
-        // during this iteration (e.g. by the background executor or
-        // by GPUI internals) so they don't pile up until the next
-        // looper wake.
-        //
-        // IMPORTANT: Only drive rendering AFTER `INIT_WINDOW_DONE`.
-        // Before that point the GPUI view hierarchy hasn't been set up
-        // (finish_launching hasn't run yet), so calling request_frame()
-        // would render an empty scene and present a blank/transparent
-        // frame — causing a visible flash on startup.  The Activity
-        // theme's `windowBackground` (white) covers the surface until
-        // the first real GPUI frame is drawn, and the draw guard in
-        // AndroidWindow::draw() skips empty scenes to avoid clearing
-        // the surface prematurely.
-        if let Some(platform) = PLATFORM.get() {
-            // Only drive rendering and flush tasks when:
-            // 1. INIT_WINDOW_DONE — GPUI callbacks are wired up
-            // 2. app_is_active — surface is valid (not backgrounded)
-            //
-            // IMPORTANT: flush_main_thread_tasks MUST be guarded by
-            // app_is_active.  Queued tasks may make JNI calls that
-            // require the Java UI thread (e.g. set_system_chrome).
-            // During lifecycle transitions the Java thread blocks in
-            // set_activity_state() / set_window() waiting for the
-            // native thread to process the corresponding command.
-            // If we flush tasks here that call into the Java thread,
-            // we deadlock: native waits on Java, Java waits on native.
-            if INIT_WINDOW_DONE.load(Ordering::Relaxed) && app_is_active {
-                platform.flush_main_thread_tasks();
-                if let Some(win) = platform.primary_window() {
-                    let frame_start = std::time::Instant::now();
-                    win.request_frame();
-                    let frame_elapsed = frame_start.elapsed();
-                    if frame_elapsed > Duration::from_millis(100) {
-                        log::warn!(
-                            "run_event_loop: request_frame took {:.1}ms (iteration={})",
-                            frame_elapsed.as_secs_f64() * 1000.0,
-                            iteration,
-                        );
-                    }
-                }
-
-                // Drain input events again AFTER rendering so that any
-                // events that arrived while request_frame was running are
-                // consumed promptly (prevents ANR on long frames).
-                process_input_events(app);
-            }
-        }
-
-        // Sleep to yield CPU.
-        if !app_is_active && bg_diag_count <= 5 {
-            log::info!("run_event_loop: end of iteration {} (bg#{}), about to sleep", iteration, bg_diag_count);
-        }
-        std::thread::sleep(Duration::from_millis(4));
-
-    }
-
-    log::info!("run_event_loop: exiting main loop");
-}
-
-/// Handle a single `MainEvent` from `android-activity`.
-fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
-    match event {
-        MainEvent::InitWindow { .. } => {
-            log::info!("MainEvent::InitWindow");
-
+        // 2. InitWindow — replace surface on existing renderer, or create new
+        if INIT_WINDOW_PENDING.swap(false, Ordering::Relaxed) {
+            log::info!("deferred: InitWindow (iter={})", iteration);
             if let Some(platform) = PLATFORM.get() {
                 if let Some(native_window) = app.native_window() {
                     let raw_ptr = native_window.ptr().as_ptr() as *mut ANativeWindow;
                     let width = unsafe { ANativeWindow_getWidth(raw_ptr) };
                     let height = unsafe { ANativeWindow_getHeight(raw_ptr) };
-                    log::info!("InitWindow — {}×{}", width, height);
+                    log::info!("InitWindow: {}×{}", width, height);
 
-                    // Update the primary display with the new window geometry.
-                    //
-                    // We pass the asset manager from ndk-context if available,
-                    // otherwise use a null pointer and let the display fall back
-                    // to a default density.
                     let native_win = raw_ptr as *mut crate::android::display::ANativeWindow;
-
-                    // Get the asset manager from the AndroidApp so we can
-                    // query the real screen density via AConfiguration.
                     let asset_manager = app.asset_manager().ptr().as_ptr() as *mut std::ffi::c_void;
                     if let Err(e) =
                         unsafe { platform.update_primary_display(native_win, asset_manager) }
@@ -801,21 +609,12 @@ fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
 
                     let win_ptr = raw_ptr as *mut crate::android::window::ANativeWindow;
 
-                    // If the logical window already exists (i.e. we're
-                    // returning from background), reinit its surface
-                    // instead of creating a brand-new window.  This
-                    // preserves all GPUI callbacks (on_request_frame,
-                    // touch, key, etc.) that were registered during the
-                    // initial open_window / finish_launching sequence.
                     if let Some(existing) = platform.primary_window() {
                         let mut gpu_ctx = platform.take_gpu_context();
                         match unsafe { existing.init_window(win_ptr, &mut gpu_ctx) } {
                             Ok(()) => {
                                 platform.return_gpu_context(gpu_ctx);
-                                log::info!(
-                                    "InitWindow: reinitialised existing window id={:#x}",
-                                    existing.id(),
-                                );
+                                log::info!("InitWindow: reinitialised existing window");
                             }
                             Err(e) => {
                                 platform.return_gpu_context(gpu_ctx);
@@ -823,18 +622,16 @@ fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
                             }
                         }
 
-                        // Update safe area insets.
+                        // Trigger GPUI resize so layout adapts to new dimensions.
+                        existing.handle_resize();
+
                         let cr = app.content_rect();
                         existing.update_safe_area_from_content_rect(
                             cr.left, cr.top, cr.right, cr.bottom,
                         );
 
-                        // Mark init done so the event loop resumes
-                        // rendering immediately (the GPUI callbacks are
-                        // already wired up from the first launch).
                         INIT_WINDOW_DONE.store(true, Ordering::Relaxed);
                     } else {
-                        // First launch — create a new window.
                         match unsafe { platform.open_window(win_ptr, scale_factor, false) } {
                             Ok(win) => {
                                 log::info!(
@@ -844,20 +641,9 @@ fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
                                 );
 
                                 let cr = app.content_rect();
-                                log::info!(
-                                    "content_rect: left={} top={} right={} bottom={} (window={}×{})",
-                                    cr.left,
-                                    cr.top,
-                                    cr.right,
-                                    cr.bottom,
-                                    width,
-                                    height,
-                                );
                                 win.update_safe_area_from_content_rect(
                                     cr.left, cr.top, cr.right, cr.bottom,
                                 );
-
-                                log::info!("InitWindow: window ready, callback deferred to event loop");
                             }
                             Err(e) => {
                                 log::error!("failed to open window: {e:#}");
@@ -866,50 +652,147 @@ fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
                     }
                 }
             }
+            // Drain — Java thread may have queued ConfigChanged/WindowResized.
+            drain_events(app);
+        }
+
+        // 3. WindowResized
+        if WINDOW_RESIZED_PENDING.swap(false, Ordering::Relaxed) {
+            log::debug!("deferred: WindowResized");
+            if let Some(platform) = PLATFORM.get() {
+                if let Some(win) = platform.primary_window() {
+                    win.handle_resize();
+                    let cr = app.content_rect();
+                    win.update_safe_area_from_content_rect(cr.left, cr.top, cr.right, cr.bottom);
+                }
+            }
+        }
+
+        // 4. ConfigChanged
+        if CONFIG_CHANGED_PENDING.swap(false, Ordering::Relaxed) {
+            log::debug!("deferred: ConfigChanged");
+            if let Some(platform) = PLATFORM.get() {
+                platform.notify_keyboard_layout_change();
+                let is_dark = query_night_mode_via_jni();
+                if let Some(win) = platform.primary_window() {
+                    let appearance = if is_dark {
+                        crate::android::window::WindowAppearance::Dark
+                    } else {
+                        crate::android::window::WindowAppearance::Light
+                    };
+                    win.set_appearance(appearance);
+                }
+            }
+        }
+
+        // 5. Pause / background
+        if PAUSE_PENDING.swap(false, Ordering::Relaxed) {
+            log::info!("deferred: Pause (iter={})", iteration);
+            if let Some(platform) = PLATFORM.get() {
+                platform.did_enter_background();
+                if let Some(win) = platform.primary_window() {
+                    win.set_active(false);
+                }
+            }
+        }
+
+        // 6. Resume / foreground
+        if RESUME_PENDING.swap(false, Ordering::Relaxed) {
+            log::info!("deferred: Resume (iter={})", iteration);
+            if let Some(platform) = PLATFORM.get() {
+                platform.did_become_active();
+                if let Some(win) = platform.primary_window() {
+                    win.set_active(true);
+                }
+            }
+        }
+
+        // Track active/focused state.
+        if let Some(platform) = PLATFORM.get() {
+            if let Some(win) = platform.primary_window() {
+                let is_active = win.is_active();
+                if is_active != app_is_active {
+                    log::info!(
+                        "run_event_loop: active {} -> {} (iter={})",
+                        app_is_active, is_active, iteration,
+                    );
+                    app_is_active = is_active;
+                }
+            }
+        }
+
+        // Process input events.
+        process_input_events(app);
+
+        // Deferred initialisation callbacks (runs once).
+        if !INIT_WINDOW_DONE.load(Ordering::Relaxed) {
+            if let Some(platform) = PLATFORM.get() {
+                if platform.primary_window().is_some() {
+                    if let Some(finish_cb) = platform.take_finish_launching_callback() {
+                        log::info!("invoking finish_launching callback (iter={})", iteration);
+                        finish_cb();
+                    }
+
+                    if let Some(init_cb) = platform.take_on_init_window_callback() {
+                        let win = platform.primary_window().unwrap();
+                        log::info!("invoking on_init_window callback (iter={})", iteration);
+                        init_cb(win);
+                    }
+
+                    INIT_WINDOW_DONE.store(true, Ordering::Relaxed);
+
+                    // Render first frame immediately.
+                    platform.flush_main_thread_tasks();
+                    if let Some(win) = platform.primary_window() {
+                        win.request_frame();
+                    }
+                }
+            }
+        }
+
+        // ── Render ──
+        if let Some(platform) = PLATFORM.get() {
+            if INIT_WINDOW_DONE.load(Ordering::Relaxed) && app_is_active {
+                platform.flush_main_thread_tasks();
+                if let Some(win) = platform.primary_window() {
+                    win.request_frame();
+                }
+
+                // Drain lifecycle events that arrived during rendering
+                // (e.g. rotation triggers TerminateWindow while we were
+                // in get_current_texture / present).
+                drain_events(app);
+                process_input_events(app);
+            }
+        }
+
+        // Yield CPU.
+        std::thread::sleep(Duration::from_millis(4));
+
+    }
+
+    log::info!("run_event_loop: exiting main loop");
+}
+
+/// Handle a single `MainEvent` from `android-activity`.
+fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
+    match event {
+        MainEvent::InitWindow { .. } => {
+            log::info!("MainEvent::InitWindow");
+            // Defer to after poll_events to avoid deadlock with state lock.
+            INIT_WINDOW_PENDING.store(true, Ordering::Relaxed);
         }
 
         MainEvent::TerminateWindow { .. } => {
             log::info!("MainEvent::TerminateWindow");
-
-            // Reset so that the deferred-init block in run_event_loop
-            // fires again when the window surface is recreated on resume.
-            INIT_WINDOW_DONE.store(false, Ordering::Relaxed);
-
-            // Reset cached chrome style so it re-applies after resume.
-            *LAST_CHROME_STYLE.lock().unwrap() = None;
-
-            if let Some(platform) = PLATFORM.get() {
-                if let Some(win) = platform.primary_window() {
-                    // Only tear down the surface — do NOT call
-                    // platform.close_window().  Closing the logical window
-                    // destroys all GPUI callbacks (on_request_frame, touch,
-                    // etc.).  When the surface is recreated on resume,
-                    // InitWindow would create a brand-new window with no
-                    // callbacks, causing the app to freeze.
-                    win.term_window();
-                }
-            }
+            // Defer to after poll_events to avoid deadlock with state lock.
+            TERM_WINDOW_PENDING.store(true, Ordering::Relaxed);
         }
 
         MainEvent::WindowResized { .. } => {
             log::debug!("MainEvent::WindowResized");
-
-            if let Some(platform) = PLATFORM.get() {
-                if let Some(win) = platform.primary_window() {
-                    win.handle_resize();
-
-                    // Re-query content_rect after resize to update safe area insets.
-                    let cr = app.content_rect();
-                    log::debug!(
-                        "WindowResized content_rect: left={} top={} right={} bottom={}",
-                        cr.left,
-                        cr.top,
-                        cr.right,
-                        cr.bottom,
-                    );
-                    win.update_safe_area_from_content_rect(cr.left, cr.top, cr.right, cr.bottom);
-                }
-            }
+            // Defer to after poll_events to avoid deadlock with state lock.
+            WINDOW_RESIZED_PENDING.store(true, Ordering::Relaxed);
         }
 
         MainEvent::GainedFocus => {
@@ -935,21 +818,7 @@ fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
 
         MainEvent::ConfigChanged { .. } => {
             log::debug!("MainEvent::ConfigChanged");
-
-            if let Some(platform) = PLATFORM.get() {
-                platform.notify_keyboard_layout_change();
-
-                let is_dark = query_night_mode_via_jni();
-
-                if let Some(win) = platform.primary_window() {
-                    let appearance = if is_dark {
-                        crate::android::window::WindowAppearance::Dark
-                    } else {
-                        crate::android::window::WindowAppearance::Light
-                    };
-                    win.set_appearance(appearance);
-                }
-            }
+            CONFIG_CHANGED_PENDING.store(true, Ordering::Relaxed);
         }
 
         MainEvent::Start => {
@@ -977,11 +846,17 @@ fn handle_main_event(app: &AndroidApp, event: MainEvent<'_>) {
         }
 
         MainEvent::InsetsChanged { .. } => {
-            log::info!("MainEvent::InsetsChanged");
+            log::debug!("MainEvent::InsetsChanged");
+            WINDOW_RESIZED_PENDING.store(true, Ordering::Relaxed);
+        }
+
+        MainEvent::ContentRectChanged { .. } => {
+            log::debug!("MainEvent::ContentRectChanged");
+            WINDOW_RESIZED_PENDING.store(true, Ordering::Relaxed);
         }
 
         _ => {
-            log::info!("MainEvent: unhandled variant");
+            log::trace!("MainEvent: other variant");
         }
     }
 }

@@ -457,39 +457,53 @@ impl AndroidWindow {
 
     /// Called when `APP_CMD_WINDOW_RESIZED` fires.
     pub fn handle_resize(&self) {
-        let mut state = self.state.lock();
+        let (new_w, new_h, scale) = {
+            let mut state = self.state.lock();
 
-        if state.native_window.is_null() {
-            return;
-        }
+            if state.native_window.is_null() {
+                return;
+            }
 
-        let new_w = unsafe { ANativeWindow_getWidth(state.native_window) };
-        let new_h = unsafe { ANativeWindow_getHeight(state.native_window) };
+            let new_w = unsafe { ANativeWindow_getWidth(state.native_window) };
+            let new_h = unsafe { ANativeWindow_getHeight(state.native_window) };
 
-        if new_w == state.width && new_h == state.height {
-            return;
-        }
+            if new_w == state.width && new_h == state.height {
+                log::debug!("handle_resize: no change ({}×{})", new_w, new_h);
+                return;
+            }
 
-        log::debug!(
-            "AndroidWindow resize: {}×{} → {}×{}",
-            state.width,
-            state.height,
-            new_w,
-            new_h
-        );
+            log::info!(
+                "AndroidWindow resize: {}×{} → {}×{}",
+                state.width,
+                state.height,
+                new_w,
+                new_h
+            );
 
-        state.width = new_w;
-        state.height = new_h;
+            state.width = new_w;
+            state.height = new_h;
+            let scale = state.scale_factor;
 
-        if let Some(renderer) = state.renderer.as_mut() {
-            renderer.update_drawable_size(gpui::size(
-                gpui::DevicePixels(new_w),
-                gpui::DevicePixels(new_h),
-            ));
-        }
+            // update_drawable_size calls device.poll(Wait) which can take
+            // time — take the renderer out to avoid holding the state lock.
+            if let Some(mut renderer) = state.renderer.take() {
+                renderer.update_drawable_size(gpui::size(
+                    gpui::DevicePixels(new_w),
+                    gpui::DevicePixels(new_h),
+                ));
+                state.renderer = Some(renderer);
+            }
 
-        let scale = state.scale_factor;
-        if let Some(cb) = state.resize_callback.as_mut() {
+            (new_w, new_h, scale)
+        }; // state lock dropped
+
+        // Fire the resize callback outside the lock — GPUI's callback may
+        // call bounds() / scale_factor() which need the state lock.
+        let cb = {
+            let mut state = self.state.lock();
+            state.resize_callback.take()
+        };
+        if let Some(mut cb) = cb {
             cb(
                 Size {
                     width: DevicePixels(new_w),
@@ -497,6 +511,11 @@ impl AndroidWindow {
                 },
                 scale,
             );
+            // Put callback back.
+            let mut state = self.state.lock();
+            if state.resize_callback.is_none() {
+                state.resize_callback = Some(cb);
+            }
         }
     }
 
@@ -536,10 +555,25 @@ impl AndroidWindow {
             return;
         }
 
+        // Take the renderer out of state so we can draw WITHOUT holding
+        // the state lock.  renderer.draw() calls get_current_texture()
+        // which can block on the GPU / Vulkan driver.  Holding the lock
+        // during that time prevents all other state accessors (bounds,
+        // scale_factor, etc.) from running, leading to deadlock when
+        // GPUI's layout or the event loop needs state during a render.
+        let mut renderer = {
+            let mut state = self.state.lock();
+            match state.renderer.take() {
+                Some(r) => r,
+                None => return,
+            }
+        };
+
+        renderer.draw(scene);
+
+        // Put the renderer back.
         let mut state = self.state.lock();
-        if let Some(renderer) = state.renderer.as_mut() {
-            renderer.draw(scene);
-        }
+        state.renderer = Some(renderer);
     }
 
     /// Invoke the `request_frame_callback` if one is registered.
@@ -625,13 +659,28 @@ impl AndroidWindow {
 
     /// Update the window's appearance (e.g. after a dark-mode change).
     pub fn set_appearance(&self, appearance: WindowAppearance) {
-        let mut state = self.state.lock();
-        if state.appearance == appearance {
-            return;
-        }
-        state.appearance = appearance;
-        if let Some(cb) = state.appearance_callback.as_mut() {
-            cb(appearance);
+        let changed = {
+            let mut state = self.state.lock();
+            if state.appearance == appearance {
+                return;
+            }
+            state.appearance = appearance;
+            true
+        };
+        if changed {
+            // Fire callback outside the lock — it may call back into
+            // GPUI which needs state access.
+            let cb = {
+                let mut state = self.state.lock();
+                state.appearance_callback.take()
+            };
+            if let Some(mut cb) = cb {
+                cb(appearance);
+                let mut state = self.state.lock();
+                if state.appearance_callback.is_none() {
+                    state.appearance_callback = Some(cb);
+                }
+            }
         }
     }
 

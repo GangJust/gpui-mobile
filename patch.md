@@ -178,15 +178,35 @@ pub fn set_active(&self, active: bool) {
 }
 ```
 
-## Patch 5: Deferred lifecycle processing (src/android/jni.rs)
+## Patch 5: Deferred lifecycle and window event processing (src/android/jni.rs)
 
-**Why**: Android's `android-activity` crate's Java callbacks block on a condvar waiting for the native thread to process the command. If our handler inside `poll_events` tries to acquire the window state lock, and a background render thread holds it, we deadlock. Fix: set atomic flags inside handlers, process them after `poll_events` returns.
+**Why**: Android's `android-activity` crate's Java callbacks block on a condvar waiting for the native thread to process the command. If our handler inside `poll_events` tries to acquire the window state lock, and a background render thread holds it, we deadlock. This affects **all** events that touch the window state: lifecycle events (Pause, Resume, GainedFocus, LostFocus) **and** window events (InitWindow, TerminateWindow, WindowResized, ConfigChanged).
+
+The orientation change ANR was caused by the same deadlock pattern — `TerminateWindow` and `InitWindow` fire during rotation and tried to acquire the window state lock inside `poll_events`.
+
+**Fix**: Set atomic flags inside ALL handlers, process them after `poll_events` returns in a defined order: TerminateWindow → InitWindow → WindowResized → ConfigChanged → Pause → Resume.
 
 ```rust
 static PAUSE_PENDING: AtomicBool = AtomicBool::new(false);
 static RESUME_PENDING: AtomicBool = AtomicBool::new(false);
+static TERM_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
+static INIT_WINDOW_PENDING: AtomicBool = AtomicBool::new(false);
+static WINDOW_RESIZED_PENDING: AtomicBool = AtomicBool::new(false);
+static CONFIG_CHANGED_PENDING: AtomicBool = AtomicBool::new(false);
 
-// Inside handle_main_event (within poll_events):
+// Inside handle_main_event (within poll_events) — only set flags, never acquire locks:
+MainEvent::InitWindow { .. } => {
+    INIT_WINDOW_PENDING.store(true, Ordering::Relaxed);
+}
+MainEvent::TerminateWindow { .. } => {
+    TERM_WINDOW_PENDING.store(true, Ordering::Relaxed);
+}
+MainEvent::WindowResized { .. } => {
+    WINDOW_RESIZED_PENDING.store(true, Ordering::Relaxed);
+}
+MainEvent::ConfigChanged { .. } => {
+    CONFIG_CHANGED_PENDING.store(true, Ordering::Relaxed);
+}
 MainEvent::Pause => {
     PAUSE_PENDING.store(true, Ordering::Relaxed);
 }
@@ -201,6 +221,46 @@ MainEvent::GainedFocus => {
 }
 
 // After poll_events returns (safe to acquire locks):
+
+// 1. TerminateWindow — unconfigure surface, release native window
+if TERM_WINDOW_PENDING.swap(false, Ordering::Relaxed) {
+    if let Some(platform) = PLATFORM.get() {
+        if let Some(win) = platform.primary_window() {
+            win.term_window();
+        }
+    }
+}
+
+// 2. InitWindow — replace surface on existing renderer, or create new window
+if INIT_WINDOW_PENDING.swap(false, Ordering::Relaxed) {
+    if let Some(platform) = PLATFORM.get() {
+        let app = platform.android_app();
+        if let Some(native_window) = app.native_window() {
+            let native_ptr = native_window.ptr().as_ptr();
+            if let Some(existing) = platform.primary_window() {
+                // Renderer exists — replace surface
+                unsafe { existing.init_window(native_ptr, &mut gpu_context) }
+                    .unwrap_or_else(|e| log::error!("init_window failed: {e}"));
+            } else {
+                // First window — full open_window path
+                platform.open_window(native_ptr, &mut gpu_context);
+            }
+            platform.update_primary_display();
+        }
+    }
+}
+
+// 3. WindowResized — update dimensions
+if WINDOW_RESIZED_PENDING.swap(false, Ordering::Relaxed) {
+    // ... resize logic (query new ANativeWindow size, update scale factor) ...
+}
+
+// 4. ConfigChanged — handle orientation, locale, etc.
+if CONFIG_CHANGED_PENDING.swap(false, Ordering::Relaxed) {
+    // ... config change logic ...
+}
+
+// 5. Pause/background
 if PAUSE_PENDING.swap(false, Ordering::Relaxed) {
     if let Some(platform) = PLATFORM.get() {
         platform.did_enter_background();
@@ -209,6 +269,8 @@ if PAUSE_PENDING.swap(false, Ordering::Relaxed) {
         }
     }
 }
+
+// 6. Resume/foreground
 if RESUME_PENDING.swap(false, Ordering::Relaxed) {
     if let Some(platform) = PLATFORM.get() {
         platform.did_become_active();
@@ -218,6 +280,8 @@ if RESUME_PENDING.swap(false, Ordering::Relaxed) {
     }
 }
 ```
+
+**Processing order matters**: TerminateWindow must run before InitWindow (surface must be unconfigured before replacement). Pause/Resume run last because they depend on the window being in its final state.
 
 ## Patch 6: JNI classloader fix (src/android/jni.rs)
 
@@ -248,30 +312,53 @@ pub fn find_app_class<'local>(
 
 ## Lifecycle Flow
 
+All events inside `poll_events` only set atomic flags. Processing happens after `poll_events` returns:
+
 ```
 Foreground → Background:
-  Pause       → set atomic PAUSE_PENDING
-  LostFocus   → set atomic PAUSE_PENDING
-  (after poll) → platform.did_enter_background() + win.set_active(false)
-  TerminateWindow → renderer.unconfigure_surface() (renderer kept alive)
-  Stop/SaveState  → no-op
+  Pause             → set PAUSE_PENDING
+  LostFocus         → set PAUSE_PENDING
+  TerminateWindow   → set TERM_WINDOW_PENDING
+  Stop/SaveState    → no-op
+  (after poll):
+    1. TERM_WINDOW  → win.term_window() → renderer.unconfigure_surface()
+    2. PAUSE        → platform.did_enter_background() + win.set_active(false)
 
 Background → Foreground:
-  Start       → no-op
-  Resume      → set atomic RESUME_PENDING
-  (after poll) → platform.did_become_active() + win.set_active(true)
-  InitWindow  → renderer.replace_surface(new_window, config, instance)
-  GainedFocus → set atomic RESUME_PENDING
+  Start             → no-op
+  Resume            → set RESUME_PENDING
+  InitWindow        → set INIT_WINDOW_PENDING
+  GainedFocus       → set RESUME_PENDING
+  (after poll):
+    1. INIT_WINDOW  → win.init_window() → renderer.replace_surface()
+    2. RESUME       → platform.did_become_active() + win.set_active(true)
+
+Orientation Change (with configChanges in manifest):
+  TerminateWindow   → set TERM_WINDOW_PENDING
+  ConfigChanged     → set CONFIG_CHANGED_PENDING
+  WindowResized     → set WINDOW_RESIZED_PENDING
+  InitWindow        → set INIT_WINDOW_PENDING
+  (after poll):
+    1. TERM_WINDOW  → win.term_window() → renderer.unconfigure_surface()
+    2. INIT_WINDOW  → win.init_window() → renderer.replace_surface(new_size)
+    3. RESIZED      → update dimensions
+    4. CONFIG       → handle config
 ```
 
 ## Verified
 
-Tested 3 consecutive background/foreground cycles on Motorola device (Adreno 720 GPU):
+**Background/Foreground cycles** — Tested 3 consecutive cycles on Motorola device (Adreno 720 GPU):
 - Zero panics
 - Zero deadlocks
 - Same PID throughout (process not killed)
 - Atlas textures preserved across cycles
 - Rendering resumes immediately on return
+
+**Orientation changes** — Tested portrait→landscape→portrait rotation:
+- Zero ANR dialogs
+- Same PID throughout (12066)
+- Surface replacement completed in <40ms per rotation
+- `finishDrawing of orientation change` confirmed by WindowManager
 
 ## Source
 

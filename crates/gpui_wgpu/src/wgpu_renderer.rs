@@ -267,7 +267,18 @@ impl WgpuRenderer {
             format: surface_format,
             width: clamped_width.max(1),
             height: clamped_height.max(1),
-            present_mode: wgpu::PresentMode::Fifo,
+            // Use Mailbox (triple-buffering) to avoid blocking in
+            // get_current_texture() during Android rotation transitions.
+            // Fifo blocks on VSync and can deadlock if the compositor is
+            // frozen during a lifecycle transition (TerminateWindow/InitWindow).
+            // Fall back to AutoNoVsync if the surface doesn't support Mailbox.
+            present_mode: if surface_caps.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+                wgpu::PresentMode::Mailbox
+            } else if surface_caps.present_modes.contains(&wgpu::PresentMode::AutoNoVsync) {
+                wgpu::PresentMode::AutoNoVsync
+            } else {
+                wgpu::PresentMode::Fifo
+            },
             desired_maximum_frame_latency: 2,
             alpha_mode,
             view_formats: vec![],
@@ -972,6 +983,14 @@ impl WgpuRenderer {
     }
 
     pub fn draw(&mut self, scene: &Scene) {
+        // Bail out early if the surface has been unconfigured (e.g. during
+        // Android background/rotation transitions).  Attempting to acquire
+        // a texture from an unconfigured surface can block indefinitely on
+        // some drivers (Adreno).
+        if !self.surface_configured {
+            return;
+        }
+
         let last_error = self.last_error.lock().unwrap().take();
         if let Some(error) = last_error {
             self.failed_frame_count += 1;
