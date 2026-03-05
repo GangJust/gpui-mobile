@@ -127,6 +127,39 @@ public final class GpuiHelper {
     }
 
     /**
+     * Navigate the active WebView back one page.
+     */
+    public static void goBack() {
+        sMainHandler.post(() -> {
+            if (sWebView != null && sWebView.canGoBack()) {
+                sWebView.goBack();
+            }
+        });
+    }
+
+    /**
+     * Reload the current page in the active WebView.
+     */
+    public static void reload() {
+        sMainHandler.post(() -> {
+            if (sWebView != null) {
+                sWebView.reload();
+            }
+        });
+    }
+
+    /**
+     * Stop loading the current page in the active WebView.
+     */
+    public static void stopLoading() {
+        sMainHandler.post(() -> {
+            if (sWebView != null) {
+                sWebView.stopLoading();
+            }
+        });
+    }
+
+    /**
      * Dismiss (remove and destroy) the active WebView.
      *
      * @param activity The current Activity.

@@ -2,7 +2,7 @@
 
 use gpui::{div, prelude::*, px, rgb};
 
-use super::{Router, BLUE, GREEN, LIGHT_CARD_BG, LIGHT_DIVIDER, LIGHT_SUBTEXT, LIGHT_TEXT, MAUVE, PEACH, RED, SURFACE0, SURFACE1, TEAL, TEXT, YELLOW};
+use super::{Router, BLUE, GREEN, LIGHT_CARD_BG, LIGHT_DIVIDER, LIGHT_SUBTEXT, LIGHT_TEXT, MAUVE, PEACH, SURFACE0, SURFACE1, TEAL, TEXT, YELLOW};
 
 /// Render the Packages demo screen.
 pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoElement {
@@ -350,79 +350,33 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
     root = root
         .child(section_header("WebView", sub_text))
         .child({
-            info_card(card_bg)
-                .child(
-                    div()
-                        .flex()
-                        .flex_row()
-                        .gap_2()
-                        .p_3()
-                        .child(
-                            div()
-                                .flex_1()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .px_4()
-                                .py_2()
-                                .rounded_lg()
-                                .bg(rgb(RED))
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(rgb(0xFFFFFF))
-                                        .child("Load HTML"),
-                                )
-                                .on_mouse_down(
-                                    gpui::MouseButton::Left,
-                                    cx.listener(|_this, _, _, cx| {
-                                        let settings = gpui_mobile::packages::webview::WebViewSettings::default();
-                                        let html = "<html><body style='background:#121318;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui'><h1>Hello from GPUI WebView!</h1></body></html>";
-                                        match gpui_mobile::packages::webview::load_html(html, &settings) {
-                                            Ok(_handle) => {
-                                                log::info!("WebView loaded successfully");
-                                            }
-                                            Err(e) => {
-                                                log::error!("WebView error: {e}");
-                                            }
-                                        }
-                                        cx.notify();
-                                    }),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .px_4()
-                                .py_2()
-                                .rounded_lg()
-                                .bg(rgb(MAUVE))
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .text_color(rgb(0xFFFFFF))
-                                        .child("Open Google"),
-                                )
-                                .on_mouse_down(
-                                    gpui::MouseButton::Left,
-                                    cx.listener(|_this, _, _, cx| {
-                                        let settings = gpui_mobile::packages::webview::WebViewSettings::default();
-                                        match gpui_mobile::packages::webview::load_url("https://google.com", &settings) {
-                                            Ok(_handle) => {
-                                                log::info!("WebView loaded URL successfully");
-                                            }
-                                            Err(e) => {
-                                                log::error!("WebView URL error: {e}");
-                                            }
-                                        }
-                                        cx.notify();
-                                    }),
-                                ),
-                        ),
-                )
+            info_card(card_bg).child(
+                div()
+                    .p_3()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .px_4()
+                            .py_3()
+                            .rounded_lg()
+                            .bg(rgb(MAUVE))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(rgb(0xFFFFFF))
+                                    .child("Open In-App Browser"),
+                            )
+                            .on_mouse_down(
+                                gpui::MouseButton::Left,
+                                cx.listener(|this, _, _, cx| {
+                                    this.navigate_to(super::Screen::WebViewBrowser);
+                                    cx.notify();
+                                }),
+                            ),
+                    ),
+            )
         });
 
     root

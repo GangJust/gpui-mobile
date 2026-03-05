@@ -24,20 +24,20 @@ updates:
 
   # ── Example app Cargo dependencies ─────────────────────────────────────────
   - package-ecosystem: "cargo"
-    directory: "/examples"
+    directory: "/example"
     schedule:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "deps(examples)"
+      prefix: "deps(example)"
       include: "scope"
     labels:
       - "dependencies"
       - "rust"
-      - "examples"
+      - "example"
     groups:
-      examples-minor-patch:
+      example-minor-patch:
         update-types:
           - "minor"
           - "patch"
@@ -58,7 +58,7 @@ updates:
 
   # ── Android Gradle dependencies ────────────────────────────────────────────
   - package-ecosystem: "gradle"
-    directory: "/examples/android/gradle"
+    directory: "/example/android/gradle"
     schedule:
       interval: "weekly"
       day: "monday"

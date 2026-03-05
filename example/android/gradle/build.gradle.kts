@@ -41,7 +41,7 @@ tasks.register("buildRustRelease") {
             commandLine(
                 "cargo", "ndk",
                 "-t", "arm64-v8a",
-                "-o", "examples/android_app/gradle/app/src/main/jniLibs",
+                "-o", "example/android_app/gradle/app/src/main/jniLibs",
                 "build", "--example", "android_app", "--release"
             )
         }
@@ -59,7 +59,7 @@ tasks.register("buildRustDebug") {
             commandLine(
                 "cargo", "ndk",
                 "-t", "arm64-v8a",
-                "-o", "examples/android_app/gradle/app/src/main/jniLibs",
+                "-o", "example/android_app/gradle/app/src/main/jniLibs",
                 "build", "--example", "android_app"
             )
         }

@@ -2,6 +2,9 @@ use super::{WebViewHandle, WebViewSettings};
 use objc::{class, msg_send, sel, sel_impl};
 use objc::runtime::Object;
 
+#[link(name = "WebKit", kind = "framework")]
+extern "C" {}
+
 pub fn load_url(url: &str, settings: &WebViewSettings) -> Result<WebViewHandle, String> {
     unsafe {
         let webview = create_webview(settings)?;
@@ -63,12 +66,34 @@ pub fn evaluate_javascript(handle: &WebViewHandle, script: &str) -> Result<(), S
     }
 }
 
+pub fn go_back(handle: &WebViewHandle) -> Result<(), String> {
+    unsafe {
+        let webview = handle.ptr as *mut Object;
+        let _: () = msg_send![webview, goBack];
+        Ok(())
+    }
+}
+
+pub fn reload(handle: &WebViewHandle) -> Result<(), String> {
+    unsafe {
+        let webview = handle.ptr as *mut Object;
+        let _: () = msg_send![webview, reload];
+        Ok(())
+    }
+}
+
+pub fn stop_loading(handle: &WebViewHandle) -> Result<(), String> {
+    unsafe {
+        let webview = handle.ptr as *mut Object;
+        let _: () = msg_send![webview, stopLoading];
+        Ok(())
+    }
+}
+
 pub fn dismiss(handle: WebViewHandle) -> Result<(), String> {
     unsafe {
         let webview = handle.ptr as *mut Object;
         let _: () = msg_send![webview, removeFromSuperview];
-        // WKWebView doesn't need explicit dealloc — ARC handles it after removeFromSuperview
-        // if nothing else retains it.
         Ok(())
     }
 }

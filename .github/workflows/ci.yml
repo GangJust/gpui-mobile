@@ -88,7 +88,7 @@ jobs:
         run: cargo check --target ${{ matrix.target }}
 
       - name: cargo check — example app (${{ matrix.label }})
-        working-directory: examples
+        working-directory: example
         run: cargo check --target ${{ matrix.target }} --features "ios,font-kit"
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ jobs:
         run: cargo check --target aarch64-linux-android
 
       - name: cargo check — example app (Android aarch64)
-        working-directory: examples
+        working-directory: example
         run: cargo check --target aarch64-linux-android
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -192,12 +192,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            examples/target
-          key: android-apk-cargo-${{ hashFiles('examples/Cargo.lock', 'examples/Cargo.toml') }}
+            example/target
+          key: android-apk-cargo-${{ hashFiles('example/Cargo.lock', 'example/Cargo.toml') }}
           restore-keys: android-apk-cargo-
 
       - name: Build Rust shared library via cargo-ndk
-        working-directory: examples
+        working-directory: example
         run: |
           cargo ndk \
             -t arm64-v8a \
@@ -205,12 +205,12 @@ jobs:
             build
 
       - name: Assemble debug APK
-        working-directory: examples/android/gradle
+        working-directory: example/android/gradle
         run: ./gradlew assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: gpui-example-debug.apk
-          path: examples/android/gradle/app/build/outputs/apk/debug/app-debug.apk
+          path: example/android/gradle/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7

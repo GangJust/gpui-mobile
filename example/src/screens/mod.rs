@@ -15,10 +15,13 @@
 pub mod about;
 pub mod components;
 pub mod counter;
+pub mod feed;
 pub mod form;
 pub mod home;
 pub mod packages_demo;
 pub mod settings;
+pub mod swiper;
+pub mod webview_browser;
 
 use crate::demos::{AnimationPlayground, ShaderShowcase};
 use gpui::{
@@ -44,6 +47,9 @@ pub enum Screen {
     Animations,
     Shaders,
     PackagesDemo,
+    WebViewBrowser,
+    Swiper,
+    Feed,
 }
 
 impl Screen {
@@ -60,6 +66,9 @@ impl Screen {
             Screen::Animations => "Animations",
             Screen::Shaders => "Shaders",
             Screen::PackagesDemo => "Packages",
+            Screen::WebViewBrowser => "Browser",
+            Screen::Swiper => "Discover",
+            Screen::Feed => "Feed",
         }
     }
 
@@ -147,6 +156,24 @@ pub struct Router {
     pub pull_distance: f32,
     /// Whether the refresh is currently active (showing spinner).
     pub refreshing: bool,
+
+    // ── WebView browser state ────────────────────────────────────────
+    /// The URL to load in the in-app browser.
+    pub webview_url: String,
+    /// Active WebView handle (if open).
+    pub webview_handle: Option<usize>,
+
+    // ── Swiper state ─────────────────────────────────────────────────
+    /// Index of the current top card in the swiper.
+    pub swiper_index: usize,
+    /// Horizontal drag offset for the current card (pixels).
+    pub swiper_drag_x: f32,
+    /// Whether a drag gesture is active.
+    pub swiper_dragging: bool,
+
+    // ── Feed state ───────────────────────────────────────────────────
+    /// Which feed posts are "liked" (by index).
+    pub feed_likes: [bool; 6],
 }
 
 /// Mutable state backing the Material Form demo screen.
@@ -212,6 +239,12 @@ impl Router {
             pull_start_y: None,
             pull_distance: 0.0,
             refreshing: false,
+            webview_url: "https://google.com".into(),
+            webview_handle: None,
+            swiper_index: 0,
+            swiper_drag_x: 0.0,
+            swiper_dragging: false,
+            feed_likes: [false; 6],
         }
     }
 
@@ -265,6 +298,13 @@ impl Router {
     /// Navigate to a new screen, pushing the current one onto the history stack.
     pub fn navigate_to(&mut self, screen: Screen) {
         if self.current_screen != screen {
+            // Dismiss webview when leaving the browser screen
+            if self.current_screen == Screen::WebViewBrowser {
+                if let Some(ptr) = self.webview_handle.take() {
+                    let handle = gpui_mobile::packages::webview::WebViewHandle { ptr };
+                    let _ = gpui_mobile::packages::webview::dismiss(handle);
+                }
+            }
             // Dismiss keyboard when leaving the form screen
             if self.form.focused_field.is_some() {
                 self.form.focused_field = None;
@@ -299,6 +339,13 @@ impl Router {
     /// Go back to the previous screen. Returns `true` if navigation occurred.
     pub fn go_back(&mut self) -> bool {
         if let Some(prev) = self.history.pop() {
+            // Dismiss webview when leaving browser
+            if self.current_screen == Screen::WebViewBrowser {
+                if let Some(ptr) = self.webview_handle.take() {
+                    let handle = gpui_mobile::packages::webview::WebViewHandle { ptr };
+                    let _ = gpui_mobile::packages::webview::dismiss(handle);
+                }
+            }
             // Dismiss keyboard when navigating back
             if self.form.focused_field.is_some() {
                 self.form.focused_field = None;
@@ -457,6 +504,9 @@ impl Router {
             Screen::Material => self.render_material_screen(cx).into_any_element(),
             Screen::Form => self.render_form_screen(cx).into_any_element(),
             Screen::PackagesDemo => self.render_packages_demo_screen(cx).into_any_element(),
+            Screen::WebViewBrowser => self.render_webview_browser_screen(cx).into_any_element(),
+            Screen::Swiper => self.render_swiper_screen(cx).into_any_element(),
+            Screen::Feed => self.render_feed_screen(cx).into_any_element(),
             Screen::Animations | Screen::Shaders => unreachable!(),
         };
 
@@ -565,6 +615,18 @@ impl Router {
 
     fn render_packages_demo_screen(&self, cx: &mut Context<Self>) -> impl IntoElement {
         packages_demo::render(self, cx)
+    }
+
+    fn render_webview_browser_screen(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        webview_browser::render(self, cx)
+    }
+
+    fn render_swiper_screen(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        swiper::render(self, cx)
+    }
+
+    fn render_feed_screen(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        feed::render(self, cx)
     }
 
     // ── Demo screen content (rendered below the TopAppBar) ────────────────────

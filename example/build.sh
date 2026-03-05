@@ -35,7 +35,7 @@ set -euo pipefail
 # ── Resolve paths ────────────────────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# SCRIPT_DIR = gpui/examples
+# SCRIPT_DIR = gpui/example
 GPUI_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # GPUI_ROOT  = gpui/
 EXAMPLES_DIR="$SCRIPT_DIR"

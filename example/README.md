@@ -13,7 +13,7 @@ cargo install cargo-ndk
 # Ensure ANDROID_NDK_HOME is set or Android Studio NDK is installed
 
 # 2. Build the native .so
-cd examples/android_app
+cd example/android_app
 cargo ndk -t arm64-v8a -o gradle/app/src/main/jniLibs build
 
 # 3. Build the APK
@@ -143,7 +143,7 @@ Touch events are translated to `MouseDown`/`MouseUp`/`MouseMove` events by
 ## Project Structure
 
 ```
-examples/android_app/
+example/android_app/
 ├── Cargo.toml                       # crate-type = ["cdylib"], depends on gpui-mobile + gpui
 ├── .cargo/
 │   └── config.toml                  # RUST_FONTCONFIG_DLOPEN=on
@@ -197,7 +197,7 @@ cargo install cargo-ndk
 
 ### Step 1: Build the Rust cdylib
 
-From the `examples/android_app/` directory:
+From the `example/android_app/` directory:
 
 ```bash
 # Debug build (large .so, fast compile)
@@ -229,7 +229,7 @@ adb shell am start -n dev.gpui.mobile.example/android.app.NativeActivity
 ### One-liner (build + package + install)
 
 ```bash
-cd examples/android_app \
+cd example/android_app \
   && cargo ndk -t arm64-v8a -o gradle/app/src/main/jniLibs build \
   && cd gradle \
   && ./gradlew assembleDebug \
@@ -278,7 +278,7 @@ If any of these mismatch, the app crashes with "ANativeActivity_onCreate not fou
 
 ### `async-task` patch
 
-Both `gpui/Cargo.toml` and `examples/android_app/Cargo.toml` must have the same
+Both `gpui/Cargo.toml` and `example/android_app/Cargo.toml` must have the same
 `[patch.crates-io]` for `async-task` — the Zed workspace uses a forked version.
 
 ## Troubleshooting
@@ -300,7 +300,7 @@ The `.so` doesn't export the symbol.  This crate uses `android-activity` which
 provides it automatically.  Make sure you're building the cdylib target:
 
 ```bash
-cargo ndk -t arm64-v8a build   # from examples/android_app/
+cargo ndk -t arm64-v8a build   # from example/android_app/
 ```
 
 Verify: `nm -D target/aarch64-linux-android/debug/libgpui_mobile_example.so | grep ANativeActivity`

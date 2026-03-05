@@ -2,7 +2,7 @@
 
 use gpui::{div, prelude::*, px, rgb};
 
-use super::{Router, Screen, BLUE, GREEN, LAVENDER, LIGHT_CARD_BG, LIGHT_SUBTEXT, LIGHT_TEXT, MAUVE, PEACH, SKY, SURFACE0, TEAL, TEXT, YELLOW};
+use super::{Router, Screen, BLUE, GREEN, LAVENDER, LIGHT_CARD_BG, LIGHT_SUBTEXT, LIGHT_TEXT, MAUVE, PEACH, RED, SKY, SURFACE0, TEAL, TEXT, YELLOW};
 
 /// Render the Home screen content area.
 ///
@@ -211,6 +211,32 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                     sub_text,
                     cx.listener(|this, _event, _window, cx| {
                         this.navigate_to(Screen::Shaders);
+                        cx.notify();
+                    }),
+                ))
+                .child(nav_card(
+                    "💘",
+                    "Swiper",
+                    "Tinder-style swipeable card stack",
+                    RED,
+                    card_bg,
+                    text_color,
+                    sub_text,
+                    cx.listener(|this, _event, _window, cx| {
+                        this.navigate_to(Screen::Swiper);
+                        cx.notify();
+                    }),
+                ))
+                .child(nav_card(
+                    "📷",
+                    "Feed",
+                    "Instagram-style photo feed with likes",
+                    MAUVE,
+                    card_bg,
+                    text_color,
+                    sub_text,
+                    cx.listener(|this, _event, _window, cx| {
+                        this.navigate_to(Screen::Feed);
                         cx.notify();
                     }),
                 )),

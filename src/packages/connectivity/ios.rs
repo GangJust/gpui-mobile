@@ -1,5 +1,7 @@
 use super::ConnectivityStatus;
-use std::ffi::CStr;
+
+#[link(name = "SystemConfiguration", kind = "framework")]
+extern "C" {}
 
 /// Check connectivity using SCNetworkReachability (available without extra frameworks).
 pub fn check_connectivity() -> ConnectivityStatus {

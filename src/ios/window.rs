@@ -14,8 +14,8 @@ use super::events::*;
 use super::IosDisplay;
 use crate::momentum::{MomentumScroller, VelocityTracker};
 use gpui::{
-    point, size, AnyWindowHandle, AtlasKey, AtlasTextureId, AtlasTextureKind, AtlasTile, Bounds,
-    Capslock, DevicePixels, DispatchEventResult, GpuSpecs, Modifiers, Pixels, PlatformAtlas,
+    point, px, size, AnyWindowHandle, AtlasKey, AtlasTextureId, AtlasTextureKind, AtlasTile,
+    Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, Modifiers, Pixels, PlatformAtlas,
     PlatformDisplay, PlatformInput, PlatformInputHandler, PlatformWindow, Point, PromptButton,
     PromptLevel, RequestFrameOptions, Scene, Size, TileId, WindowAppearance,
     WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowParams,
@@ -1136,24 +1136,23 @@ impl IosWindow {
             let old_bounds = self.bounds.get();
             let old_scale = self.scale_factor.get();
 
+            let new_size = size(px(new_w), px(new_h));
+
             // Only process if something actually changed.
-            if (old_bounds.size.width.0 - new_w).abs() < 0.5
-                && (old_bounds.size.height.0 - new_h).abs() < 0.5
-                && (old_scale - new_scale).abs() < 0.01
-            {
+            if old_bounds.size == new_size && (old_scale - new_scale).abs() < 0.01 {
                 return;
             }
 
             log::info!(
-                "GPUI iOS: Layout changed — {:.0}x{:.0} @{:.1}x → {:.0}x{:.0} @{:.1}x",
-                old_bounds.size.width.0, old_bounds.size.height.0, old_scale,
-                new_w, new_h, new_scale,
+                "GPUI iOS: Layout changed — {:?} @{:.1}x → {:?} @{:.1}x",
+                old_bounds.size, old_scale,
+                new_size, new_scale,
             );
 
             // Update stored bounds (in logical pixels, matching GPUI convention).
             let new_bounds = Bounds {
-                origin: point(Pixels(0.0), Pixels(0.0)),
-                size: size(Pixels(new_w), Pixels(new_h)),
+                origin: Default::default(),
+                size: new_size,
             };
             self.bounds.set(new_bounds);
             self.scale_factor.set(new_scale);
@@ -1179,13 +1178,7 @@ impl IosWindow {
             // Fire the resize callback so GPUI re-layouts at the new size.
             let cb = self.resize_callback.borrow_mut().take();
             if let Some(mut cb) = cb {
-                cb(
-                    Size {
-                        width: Pixels(new_w),
-                        height: Pixels(new_h),
-                    },
-                    new_scale,
-                );
+                cb(new_size, new_scale);
                 // Restore the callback for future resize events.
                 let mut slot = self.resize_callback.borrow_mut();
                 if slot.is_none() {

@@ -1,6 +1,9 @@
 use super::NetworkInfo;
 use std::ffi::CStr;
 
+#[link(name = "SystemConfiguration", kind = "framework")]
+extern "C" {}
+
 pub fn get_network_info() -> Result<NetworkInfo, String> {
     let mut info = NetworkInfo::default();
 

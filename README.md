@@ -64,7 +64,7 @@ gpui/
 │       ├── atlas.rs            # GPU texture atlas (etagere)
 │       ├── text.rs             # AndroidTextSystem (cosmic-text + swash)
 │       └── jni_entry.rs        # NativeActivity lifecycle + event loop
-├── examples/
+├── example/
 │   ├── Cargo.toml              # Example app crate
 │   ├── build.sh                # Unified build & run script
 │   ├── src/
@@ -104,7 +104,7 @@ gpui/
 The unified build script handles everything:
 
 ```bash
-cd examples
+cd example
 
 # iOS — build, sign, install & launch on connected iPhone
 ./build.sh ios --device
@@ -132,7 +132,7 @@ cd examples
 rustup target add aarch64-apple-ios
 
 # Build the example (builds gpui-mobile as dependency)
-cd examples
+cd example
 cargo build --target aarch64-apple-ios --features "ios,font-kit"
 
 # Generate Xcode project & build
@@ -149,7 +149,7 @@ xcodebuild -project GpuiExample.xcodeproj -scheme GpuiExample \
 rustup target add aarch64-linux-android
 
 # Build the shared library
-cd examples
+cd example
 cargo ndk -t arm64-v8a -o android/gradle/app/src/main/jniLibs build
 
 # Assemble & install APK
