@@ -177,6 +177,26 @@ pub struct Router {
     /// Monotonic counter used to generate unique animation IDs per swipe.
     pub swiper_anim_id: u32,
 
+    // ── File/Image picker state ─────────────────────────────────────
+    /// Last picked file name (for demo display).
+    pub last_picked_file: Option<String>,
+    /// Last picked image name (for demo display).
+    pub last_picked_image: Option<String>,
+
+    // ── Camera state ─────────────────────────────────────────────────
+    /// Active camera session handle.
+    pub camera_handle: Option<usize>,
+    /// Last camera status message (for demo display).
+    pub camera_status: Option<String>,
+    /// Whether the camera preview is active.
+    pub camera_previewing: bool,
+    /// Whether video recording is active.
+    pub camera_recording: bool,
+
+    // ── Permission handler state ──────────────────────────────────
+    /// Last permission status message (for demo display).
+    pub perm_status: Option<String>,
+
     // ── Feed state ───────────────────────────────────────────────────
     /// Which feed posts are "liked" (by index).
     pub feed_likes: [bool; 6],
@@ -259,6 +279,13 @@ impl Router {
             swiper_dragging: false,
             swiper_fly_direction: 0.0,
             swiper_anim_id: 0,
+            last_picked_file: None,
+            last_picked_image: None,
+            camera_handle: None,
+            camera_status: None,
+            camera_previewing: false,
+            camera_recording: false,
+            perm_status: None,
             feed_likes: [false; 6],
             feed_pull_start_y: None,
             feed_pull_distance: 0.0,

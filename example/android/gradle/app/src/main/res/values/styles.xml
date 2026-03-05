@@ -22,9 +22,9 @@
 
     <!-- Base application theme for the GPUI example app. -->
     <style name="GpuiTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
-        <!-- Solid white background eliminates the black flash between the
-             system splash and the first rendered frame. -->
-        <item name="android:windowBackground">@android:color/white</item>
+        <!-- Match the app's dark theme surface color (0x121318) to eliminate
+             any flash between the system splash and the first rendered frame. -->
+        <item name="android:windowBackground">@color/gpui_surface</item>
 
         <!-- Keep the window opaque so the compositor doesn't blend with
              whatever is behind us (avoids transparency flicker). -->

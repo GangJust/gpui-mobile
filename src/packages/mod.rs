@@ -38,3 +38,15 @@ pub mod sensors;
 
 #[cfg(feature = "webview")]
 pub mod webview;
+
+#[cfg(feature = "file_selector")]
+pub mod file_selector;
+
+#[cfg(feature = "image_picker")]
+pub mod image_picker;
+
+#[cfg(feature = "camera")]
+pub mod camera;
+
+#[cfg(feature = "permission_handler")]
+pub mod permission_handler;

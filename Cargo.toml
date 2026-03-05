@@ -14,7 +14,8 @@ readme = "README.md"
 [features]
 default = ["url_launcher", "shared_preferences", "path_provider",
            "package_info", "device_info", "connectivity", "network_info", "vibration",
-           "battery", "share", "sensors", "webview"]
+           "battery", "share", "sensors", "webview", "file_selector", "image_picker", "camera",
+           "permission_handler"]
 url_launcher = []
 shared_preferences = []
 path_provider = []
@@ -27,6 +28,10 @@ battery = []
 share = []
 sensors = []
 webview = []
+file_selector = []
+image_picker = []
+camera = []
+permission_handler = []
 
 [lib]
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -54,7 +59,8 @@ core-foundation     = "0.10"
 core-foundation-sys = "0.8"
 core-graphics       = "0.24"
 core-text           = "=21.0.0"
-uuid                = { version = "1", features = ["v5"] }
+uuid                = { version = "1", features = ["v4", "v5"] }
+block               = "0.1"
 
 # wgpu renderer (Metal backend on iOS) — local fork from Zed with Android surface replacement
 gpui_wgpu = { path = "crates/gpui_wgpu", features = ["font-kit"] }

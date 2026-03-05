@@ -29,6 +29,16 @@
     <!-- Vibration permission -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Camera permission (for image_picker camera source) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <!-- Camera feature (optional — app works without camera) -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
     <!-- Vulkan feature declaration.
          `required="false"` allows the app to fall back to OpenGL ES on
          devices without Vulkan support. -->
@@ -94,6 +104,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Transparent helper Activity for file/image picker results. -->
+        <activity
+            android:name="dev.gpui.mobile.GpuiPickerActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+        />
+
+        <!-- Transparent helper Activity for runtime permission requests. -->
+        <activity
+            android:name="dev.gpui.mobile.GpuiPermissionActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+        />
+
     </application>
 
 </manifest>
