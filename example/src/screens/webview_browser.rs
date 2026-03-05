@@ -6,7 +6,7 @@
 
 use gpui::{div, prelude::*, px, rgb};
 
-use super::{Router, BLUE, GREEN, LIGHT_CARD_BG, LIGHT_TEXT, RED, SURFACE0, SURFACE1, TEXT, YELLOW};
+use super::{Router, BLUE, GREEN, LIGHT_CARD_BG, LIGHT_TEXT, RED, SURFACE0, SURFACE1, TEXT};
 
 /// Approximate height of the TopAppBar rendered by the Router (in logical pt).
 const APP_BAR_HEIGHT: f32 = 56.0;

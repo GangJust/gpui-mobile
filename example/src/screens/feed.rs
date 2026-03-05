@@ -3,7 +3,7 @@
 //! Photo cards with user avatars, like/comment/share buttons, captions,
 //! and like counts. Tap the heart to toggle likes.
 
-use gpui::{div, prelude::*, px, rgb};
+use gpui::{div, img, prelude::*, px, rgb};
 
 use super::{Router, LIGHT_CARD_BG, LIGHT_TEXT, RED, SURFACE0, SURFACE1, TEXT, SUBTEXT, LIGHT_SUBTEXT};
 
@@ -16,6 +16,8 @@ struct FeedPost {
     likes: u32,
     comments: u32,
     time_ago: &'static str,
+    /// Picsum photo ID for the post image.
+    photo_id: u32,
 }
 
 const POSTS: &[FeedPost] = &[
@@ -27,6 +29,7 @@ const POSTS: &[FeedPost] = &[
         likes: 1243,
         comments: 89,
         time_ago: "2h",
+        photo_id: 29,
     },
     FeedPost {
         username: "foodie_jordan",
@@ -36,6 +39,7 @@ const POSTS: &[FeedPost] = &[
         likes: 892,
         comments: 156,
         time_ago: "4h",
+        photo_id: 292,
     },
     FeedPost {
         username: "morgan.designs",
@@ -45,6 +49,7 @@ const POSTS: &[FeedPost] = &[
         likes: 2105,
         comments: 243,
         time_ago: "6h",
+        photo_id: 180,
     },
     FeedPost {
         username: "riley_music",
@@ -54,6 +59,7 @@ const POSTS: &[FeedPost] = &[
         likes: 567,
         comments: 45,
         time_ago: "8h",
+        photo_id: 453,
     },
     FeedPost {
         username: "casey_codes",
@@ -63,6 +69,7 @@ const POSTS: &[FeedPost] = &[
         likes: 1890,
         comments: 167,
         time_ago: "12h",
+        photo_id: 1060,
     },
     FeedPost {
         username: "quinn_surf",
@@ -72,6 +79,7 @@ const POSTS: &[FeedPost] = &[
         likes: 3456,
         comments: 312,
         time_ago: "1d",
+        photo_id: 1053,
     },
 ];
 
@@ -79,7 +87,7 @@ pub fn render(router: &mut Router, cx: &mut gpui::Context<Router>) -> impl IntoE
     let dark = router.dark_mode;
     let text_color = if dark { TEXT } else { LIGHT_TEXT };
     let sub_text = if dark { SUBTEXT } else { LIGHT_SUBTEXT };
-    let card_bg = if dark { SURFACE0 } else { LIGHT_CARD_BG };
+    let _card_bg = if dark { SURFACE0 } else { LIGHT_CARD_BG };
     let divider = if dark { SURFACE1 } else { 0xDADAE0 };
 
     let mut feed = div().flex().flex_col().w_full();
@@ -135,22 +143,24 @@ pub fn render(router: &mut Router, cx: &mut gpui::Context<Router>) -> impl IntoE
                                 .child(post.time_ago.to_string()),
                         ),
                 )
-                // Image area (colored placeholder)
-                .child(
+                // Image area — picsum.photos with colored fallback
+                .child({
+                    let photo_url: gpui::SharedString = format!(
+                        "https://picsum.photos/id/{}/800/640",
+                        post.photo_id
+                    ).into();
                     div()
                         .w_full()
                         .h(px(320.0))
                         .bg(rgb(post.image_color))
-                        .flex()
-                        .items_center()
-                        .justify_center()
                         .child(
-                            div()
-                                .text_3xl()
-                                .text_color(gpui::rgba(0xFFFFFF44))
-                                .child("photo"),
-                        ),
-                )
+                            img(photo_url)
+                                .w_full()
+                                .h(px(320.0))
+                                .object_fit(gpui::ObjectFit::Cover)
+                                .id(format!("feed-img-{}", i)),
+                        )
+                })
                 // Action buttons row
                 .child(
                     div()

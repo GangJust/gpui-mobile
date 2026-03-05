@@ -170,6 +170,10 @@ pub struct Router {
     pub swiper_drag_x: f32,
     /// Whether a drag gesture is active.
     pub swiper_dragging: bool,
+    /// Swipe-out animation: +1.0 = liked (fly right), -1.0 = noped (fly left), 0.0 = none.
+    pub swiper_fly_direction: f32,
+    /// Monotonic counter used to generate unique animation IDs per swipe.
+    pub swiper_anim_id: u32,
 
     // ── Feed state ───────────────────────────────────────────────────
     /// Which feed posts are "liked" (by index).
@@ -244,6 +248,8 @@ impl Router {
             swiper_index: 0,
             swiper_drag_x: 0.0,
             swiper_dragging: false,
+            swiper_fly_direction: 0.0,
+            swiper_anim_id: 0,
             feed_likes: [false; 6],
         }
     }

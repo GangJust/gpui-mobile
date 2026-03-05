@@ -209,6 +209,11 @@ pub fn ios_main() {
 /// platforms, windows are fullscreen so `window_bounds` is `None`.
 #[cfg(any(target_os = "ios", target_os = "android"))]
 fn open_main_window(cx: &mut App) {
+    // Set up HTTP client so gpui::img() can fetch remote images (e.g. picsum.photos).
+    let http_client = reqwest_client::ReqwestClient::user_agent("gpui-mobile/0.1")
+        .expect("Failed to create HTTP client");
+    cx.set_http_client(std::sync::Arc::new(http_client));
+
     match cx.open_window(
         WindowOptions {
             window_bounds: None,
