@@ -243,16 +243,16 @@ pub fn render(router: &mut Router, cx: &mut gpui::Context<Router>) -> impl IntoE
         .when(!is_flying, |el| {
             el.on_mouse_down(
                 gpui::MouseButton::Left,
-                cx.listener(|this, _event: &gpui::MouseDownEvent, _window, cx| {
+                cx.listener(|this, event: &gpui::MouseDownEvent, _window, cx| {
                     this.swiper_dragging = true;
+                    this.swiper_drag_start_x = Some(event.position.x.as_f32());
                     this.swiper_drag_x = 0.0;
                     cx.notify();
                 }),
             )
             .on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _window, cx| {
-                if this.swiper_dragging {
-                    let center_x = 160.0;
-                    this.swiper_drag_x = event.position.x.as_f32() - center_x;
+                if let Some(start_x) = this.swiper_drag_start_x {
+                    this.swiper_drag_x = event.position.x.as_f32() - start_x;
                     cx.notify();
                 }
             }))
@@ -261,6 +261,7 @@ pub fn render(router: &mut Router, cx: &mut gpui::Context<Router>) -> impl IntoE
                 cx.listener(|this, _event: &gpui::MouseUpEvent, _window, cx| {
                     if this.swiper_dragging {
                         this.swiper_dragging = false;
+                        this.swiper_drag_start_x = None;
                         if this.swiper_drag_x.abs() > SWIPE_THRESHOLD {
                             // Trigger fly-off animation
                             this.swiper_fly_direction = if this.swiper_drag_x > 0.0 { 1.0 } else { -1.0 };

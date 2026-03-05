@@ -1,11 +1,16 @@
-//! Instagram-style vertical scrollable feed.
+//! Instagram-style vertical scrollable feed with pull-to-refresh.
 //!
 //! Photo cards with user avatars, like/comment/share buttons, captions,
-//! and like counts. Tap the heart to toggle likes.
+//! and like counts. Tap the heart to toggle likes. Pull down to refresh.
+
+use std::time::Duration;
 
 use gpui::{div, img, prelude::*, px, rgb};
 
 use super::{Router, LIGHT_CARD_BG, LIGHT_TEXT, RED, SURFACE0, SURFACE1, TEXT, SUBTEXT, LIGHT_SUBTEXT};
+
+/// Pull distance (px) to trigger refresh.
+const REFRESH_THRESHOLD: f32 = 80.0;
 
 /// Feed post data.
 struct FeedPost {
@@ -89,8 +94,93 @@ pub fn render(router: &mut Router, cx: &mut gpui::Context<Router>) -> impl IntoE
     let sub_text = if dark { SUBTEXT } else { LIGHT_SUBTEXT };
     let _card_bg = if dark { SURFACE0 } else { LIGHT_CARD_BG };
     let divider = if dark { SURFACE1 } else { 0xDADAE0 };
+    let pull_distance = router.feed_pull_distance;
+    let refreshing = router.feed_refreshing;
 
-    let mut feed = div().flex().flex_col().w_full();
+    let mut feed = div()
+        .flex()
+        .flex_col()
+        .w_full()
+        // Pull-to-refresh touch handlers
+        .on_mouse_down(
+            gpui::MouseButton::Left,
+            cx.listener(|this, event: &gpui::MouseDownEvent, _window, cx| {
+                if !this.feed_refreshing {
+                    this.feed_pull_start_y = Some(event.position.y.as_f32());
+                }
+                cx.notify();
+            }),
+        )
+        .on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _window, cx| {
+            if let Some(start_y) = this.feed_pull_start_y {
+                let delta = event.position.y.as_f32() - start_y;
+                // Only allow downward pull (positive delta) with diminishing return
+                this.feed_pull_distance = if delta > 0.0 {
+                    delta * 0.5 // Rubber-band effect
+                } else {
+                    0.0
+                };
+                cx.notify();
+            }
+        }))
+        .on_mouse_up(
+            gpui::MouseButton::Left,
+            cx.listener(|this, _, _, cx| {
+                this.feed_pull_start_y = None;
+                if this.feed_pull_distance > REFRESH_THRESHOLD {
+                    // Trigger refresh
+                    this.feed_refreshing = true;
+                    this.feed_pull_distance = 60.0; // Keep indicator visible
+                    cx.spawn(async |this, cx| {
+                        cx.background_executor()
+                            .timer(Duration::from_millis(1500))
+                            .await;
+                        let _ = this.update(cx, |this, cx| {
+                            this.feed_refreshing = false;
+                            this.feed_pull_distance = 0.0;
+                            // Reset likes on refresh for demo
+                            this.feed_likes = [false; 6];
+                            cx.notify();
+                        });
+                    }).detach();
+                } else {
+                    this.feed_pull_distance = 0.0;
+                }
+                cx.notify();
+            }),
+        );
+
+    // ── Pull-to-refresh indicator ──────────────────────────────────
+    if pull_distance > 10.0 || refreshing {
+        let indicator_opacity = if refreshing { 1.0 } else { (pull_distance / REFRESH_THRESHOLD).min(1.0) };
+        let indicator_height = if refreshing { 60.0 } else { pull_distance.min(100.0) };
+
+        feed = feed.child(
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .w_full()
+                .h(px(indicator_height))
+                .opacity(indicator_opacity)
+                .child(
+                    div()
+                        .text_lg()
+                        .text_color(rgb(sub_text))
+                        .child(if refreshing { "Refreshing..." } else if pull_distance > REFRESH_THRESHOLD { "Release to refresh" } else { "Pull to refresh" }),
+                )
+                .when(refreshing, |d| {
+                    d.child(
+                        div()
+                            .mt_1()
+                            .text_xs()
+                            .text_color(rgb(sub_text))
+                            .child("Loading new posts..."),
+                    )
+                }),
+        );
+    }
 
     for (i, post) in POSTS.iter().enumerate() {
         let liked = router.feed_likes[i];

@@ -168,6 +168,8 @@ pub struct Router {
     pub swiper_index: usize,
     /// Horizontal drag offset for the current card (pixels).
     pub swiper_drag_x: f32,
+    /// X position where the drag gesture started (for relative tracking).
+    pub swiper_drag_start_x: Option<f32>,
     /// Whether a drag gesture is active.
     pub swiper_dragging: bool,
     /// Swipe-out animation: +1.0 = liked (fly right), -1.0 = noped (fly left), 0.0 = none.
@@ -178,6 +180,12 @@ pub struct Router {
     // ── Feed state ───────────────────────────────────────────────────
     /// Which feed posts are "liked" (by index).
     pub feed_likes: [bool; 6],
+    /// Feed pull-to-refresh: Y coordinate where drag started.
+    pub feed_pull_start_y: Option<f32>,
+    /// Feed pull-to-refresh: current pull distance in px.
+    pub feed_pull_distance: f32,
+    /// Whether the feed is currently "refreshing".
+    pub feed_refreshing: bool,
 }
 
 /// Mutable state backing the Material Form demo screen.
@@ -247,10 +255,14 @@ impl Router {
             webview_handle: None,
             swiper_index: 0,
             swiper_drag_x: 0.0,
+            swiper_drag_start_x: None,
             swiper_dragging: false,
             swiper_fly_direction: 0.0,
             swiper_anim_id: 0,
             feed_likes: [false; 6],
+            feed_pull_start_y: None,
+            feed_pull_distance: 0.0,
+            feed_refreshing: false,
         }
     }
 

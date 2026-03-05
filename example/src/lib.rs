@@ -210,9 +210,19 @@ pub fn ios_main() {
 #[cfg(any(target_os = "ios", target_os = "android"))]
 fn open_main_window(cx: &mut App) {
     // Set up HTTP client so gpui::img() can fetch remote images (e.g. picsum.photos).
-    let http_client = reqwest_client::ReqwestClient::user_agent("gpui-mobile/0.1")
-        .expect("Failed to create HTTP client");
+    // We build the reqwest client ourselves so we can skip TLS cert verification.
+    // On iOS, rustls-native-certs fails to load system root certs, causing all
+    // HTTPS requests to fail with "UnknownIssuer". Since this is a demo app,
+    // disabling cert verification is acceptable.
+    log::info!("Setting up HTTP client for image loading...");
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("Failed to create reqwest client");
+    let http_client: reqwest_client::ReqwestClient = client.into();
     cx.set_http_client(std::sync::Arc::new(http_client));
+    log::info!("HTTP client configured successfully");
 
     match cx.open_window(
         WindowOptions {
