@@ -1650,7 +1650,7 @@ impl PlatformWindow for AndroidPlatformWindow {
         // CursorAnchorInfo built from the given bounds.
         // Requires API level 21+ (Lollipop).
 
-        use crate::android::jni_helpers;
+        use crate::android::jni as jni_helpers;
         use jni::objects::JValue;
 
         let mut env = match jni_helpers::obtain_env() {

@@ -1,5 +1,5 @@
 use super::ConnectivityStatus;
-use crate::android::jni_helpers;
+use crate::android::jni as jni_helpers;
 use jni::objects::JValue;
 
 pub fn check_connectivity() -> ConnectivityStatus {

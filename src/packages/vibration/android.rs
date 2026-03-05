@@ -1,5 +1,5 @@
 use super::HapticFeedback;
-use crate::android::jni_helpers::{self, JniExt};
+use crate::android::jni::{self as jni_helpers, JniExt};
 use jni::objects::{JObject, JValue};
 
 pub fn vibrate(duration_ms: u32) -> Result<(), String> {

@@ -1,5 +1,5 @@
 use super::NetworkInfo;
-use crate::android::jni_helpers::{self, get_string};
+use crate::android::jni::{self as jni_helpers, get_string};
 use jni::objects::JValue;
 
 pub fn get_network_info() -> Result<NetworkInfo, String> {

@@ -728,7 +728,7 @@ impl AndroidPlatform {
     ///
     /// Returns `None` if the JNI environment is unavailable or the call fails.
     fn query_keyboard_layout_id_via_jni(&self) -> Option<String> {
-        use crate::android::jni_helpers::{self, get_string};
+        use crate::android::jni::{self as jni_helpers, get_string};
         use jni::objects::JValue;
 
         let mut env = jni_helpers::obtain_env().ok()?;
@@ -823,7 +823,7 @@ impl AndroidPlatform {
     /// Returns -1 on failure (JNI unavailable, API < 29, etc.).
     #[allow(dead_code)]
     fn query_thermal_status_via_jni(&self) -> i32 {
-        use crate::android::jni_helpers;
+        use crate::android::jni as jni_helpers;
         use jni::objects::JValue;
 
         let mut env = match jni_helpers::obtain_env() {

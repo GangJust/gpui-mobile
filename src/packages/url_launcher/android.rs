@@ -1,4 +1,4 @@
-use crate::android::jni_helpers::{self, JniExt};
+use crate::android::jni::{self as jni_helpers, JniExt};
 use jni::objects::JValue;
 
 pub fn launch_url(url: &str) -> Result<bool, String> {

@@ -21,6 +21,14 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Network / connectivity permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Vibration permission -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Vulkan feature declaration.
          `required="false"` allows the app to fall back to OpenGL ES on
          devices without Vulkan support. -->

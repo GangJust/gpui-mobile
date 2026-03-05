@@ -1,4 +1,4 @@
-use crate::android::jni_helpers::{self, get_string, JniExt};
+use crate::android::jni::{self as jni_helpers, get_string, JniExt};
 use jni::objects::{JObject, JValue};
 
 pub struct AndroidSharedPreferences;

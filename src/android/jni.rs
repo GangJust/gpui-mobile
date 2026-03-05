@@ -48,8 +48,79 @@ use android_activity::{AndroidApp, MainEvent, PollEvent};
 
 use super::platform::{AndroidPlatform, SharedPlatform};
 
-use jni::objects::JValue;
-use super::jni_helpers;
+use jni::objects::{JObject, JString, JValue};
+use jni::{JNIEnv, JavaVM};
+
+// ── JNI helpers (safe `jni` crate wrappers) ──────────────────────────────────
+
+static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
+
+/// Get or create the static `JavaVM` wrapper.
+fn java_vm_safe() -> Result<&'static JavaVM, String> {
+    if let Some(vm) = JAVA_VM.get() {
+        return Ok(vm);
+    }
+    let ptr = java_vm();
+    if ptr.is_null() {
+        return Err("JavaVM not available".into());
+    }
+    Ok(JAVA_VM.get_or_init(|| unsafe {
+        JavaVM::from_raw(ptr as *mut jni::sys::JavaVM).expect("Invalid JavaVM pointer")
+    }))
+}
+
+/// Attach the current thread to the JVM and return a `JNIEnv`.
+///
+/// The returned [`jni::AttachGuard`] auto-detaches the thread when dropped.
+pub fn obtain_env() -> Result<jni::AttachGuard<'static>, String> {
+    let vm = java_vm_safe()?;
+    vm.attach_current_thread().map_err(|e| e.to_string())
+}
+
+/// Get the Activity as a [`JObject`].
+///
+/// `activity_as_ptr()` returns a JNI global reference from `android-activity`
+/// that is valid for the lifetime of the app. We wrap it in a `JObject`
+/// without taking ownership (JObject has no Drop).
+pub fn activity() -> Result<JObject<'static>, String> {
+    let ptr = activity_as_ptr();
+    if ptr.is_null() {
+        return Err("Activity not available".into());
+    }
+    Ok(unsafe { JObject::from_raw(ptr as jni::sys::jobject) })
+}
+
+/// Convert a Java String (`JObject` wrapping a `java.lang.String`) to a Rust `String`.
+///
+/// Returns an empty string on null or error.
+pub fn get_string(env: &mut JNIEnv<'_>, obj: &JObject<'_>) -> String {
+    if obj.is_null() {
+        return String::new();
+    }
+    let jstr = unsafe { JString::from_raw(obj.as_raw()) };
+    let result = match env.get_string(&jstr) {
+        Ok(s) => s.into(),
+        Err(_) => {
+            let _ = env.exception_clear();
+            String::new()
+        }
+    };
+    // Prevent JString from interfering with the raw jobject lifetime.
+    // JString has no Drop, but we explicitly forget for clarity.
+    std::mem::forget(jstr);
+    result
+}
+
+/// Extension trait for converting `jni::errors::Result<T>` to `Result<T, String>`.
+pub(crate) trait JniExt<T> {
+    fn e(self) -> Result<T, String>;
+}
+
+impl<T> JniExt<T> for jni::errors::Result<T> {
+    fn e(self) -> Result<T, String> {
+        self.map_err(|e| e.to_string())
+    }
+}
 
 // ── global state ─────────────────────────────────────────────────────────────
 
@@ -68,7 +139,7 @@ static PLATFORM: OnceLock<Arc<AndroidPlatform>> = OnceLock::new();
 /// This creates a `android.view.KeyEvent` Java object and calls
 /// `getUnicodeChar(metaState)` on it.  Returns 0 on failure.
 pub fn unicode_char_for_key_event(key_code: i32, action: i32, meta_state: i32) -> u32 {
-    let mut env = match jni_helpers::obtain_env() {
+    let mut env = match obtain_env() {
         Ok(e) => e,
         Err(_) => return 0,
     };
@@ -842,14 +913,14 @@ pub fn init_platform(app: &AndroidApp) -> &'static Arc<AndroidPlatform> {
 ///
 /// Must be called from the main (native) thread that has JNI access.
 pub fn set_system_chrome(style: &crate::SystemChromeStyle) {
-    let mut env = match jni_helpers::obtain_env() {
+    let mut env = match obtain_env() {
         Ok(e) => e,
         Err(e) => {
             log::warn!("set_system_chrome: {e}");
             return;
         }
     };
-    let activity_obj = match jni_helpers::activity() {
+    let activity_obj = match activity() {
         Ok(a) => a,
         Err(e) => {
             log::warn!("set_system_chrome: {e}");
