@@ -70,10 +70,37 @@ fn register_view_controller_class() -> &'static Class {
             }
         }
 
+        // Override viewDidLayoutSubviews — called by UIKit on rotation,
+        // split-screen changes, and any other layout pass.
+        extern "C" fn view_did_layout_subviews(this: &Object, _sel: Sel) {
+            // Call super
+            unsafe {
+                let superclass = class!(UIViewController);
+                let _: () = msg_send![super(this, superclass), viewDidLayoutSubviews];
+            }
+
+            // Notify all registered GPUI windows about the layout change.
+            if let Some(wrapper) = super::ffi::IOS_WINDOW_LIST.get() {
+                unsafe {
+                    let windows = &*wrapper.0.get();
+                    for &window_ptr in windows.iter() {
+                        if !window_ptr.is_null() {
+                            let window = &*window_ptr;
+                            window.handle_layout_change();
+                        }
+                    }
+                }
+            }
+        }
+
         unsafe {
             decl.add_method(
                 sel!(preferredStatusBarStyle),
                 preferred_status_bar_style as extern "C" fn(&Object, Sel) -> isize,
+            );
+            decl.add_method(
+                sel!(viewDidLayoutSubviews),
+                view_did_layout_subviews as extern "C" fn(&Object, Sel),
             );
         }
 
@@ -468,6 +495,10 @@ impl IosWindow {
             let layer: *mut Object = msg_send![view, layer];
             let scale: core_graphics::base::CGFloat = msg_send![screen_obj, scale];
             let _: () = msg_send![layer, setContentsScale: scale];
+
+            // Auto-resize the Metal view when the parent view changes size
+            // (e.g. rotation). UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight
+            let _: () = msg_send![view, setAutoresizingMask: 18_usize]; // 0x02 | 0x10
 
             // Enable user interaction on the Metal view for touch handling
             let _: () = msg_send![view, setUserInteractionEnabled: YES];
@@ -1084,6 +1115,83 @@ impl IosWindow {
 
         if let Some(callback) = self.active_status_callback.borrow_mut().as_mut() {
             callback(is_active);
+        }
+    }
+
+    /// Handle a layout change (e.g. rotation, split-screen resize).
+    ///
+    /// Called from `viewDidLayoutSubviews` on the GPUIViewController.
+    /// Queries the current UIView bounds, updates the stored bounds/scale,
+    /// reconfigures the Metal layer + wgpu surface, and fires the resize callback.
+    pub fn handle_layout_change(&self) {
+        unsafe {
+            let view_bounds: core_graphics::geometry::CGRect = msg_send![self.view, bounds];
+            let screen: *mut Object = msg_send![class!(UIScreen), mainScreen];
+            let scale: core_graphics::base::CGFloat = msg_send![screen, scale];
+
+            let new_w = view_bounds.size.width as f32;
+            let new_h = view_bounds.size.height as f32;
+            let new_scale = scale as f32;
+
+            let old_bounds = self.bounds.get();
+            let old_scale = self.scale_factor.get();
+
+            // Only process if something actually changed.
+            if (old_bounds.size.width.0 - new_w).abs() < 0.5
+                && (old_bounds.size.height.0 - new_h).abs() < 0.5
+                && (old_scale - new_scale).abs() < 0.01
+            {
+                return;
+            }
+
+            log::info!(
+                "GPUI iOS: Layout changed — {:.0}x{:.0} @{:.1}x → {:.0}x{:.0} @{:.1}x",
+                old_bounds.size.width.0, old_bounds.size.height.0, old_scale,
+                new_w, new_h, new_scale,
+            );
+
+            // Update stored bounds (in logical pixels, matching GPUI convention).
+            let new_bounds = Bounds {
+                origin: point(Pixels(0.0), Pixels(0.0)),
+                size: size(Pixels(new_w), Pixels(new_h)),
+            };
+            self.bounds.set(new_bounds);
+            self.scale_factor.set(new_scale);
+
+            // Update the Metal layer's contentsScale so the drawable has the
+            // correct pixel dimensions.
+            let layer: *mut Object = msg_send![self.view, layer];
+            let _: () = msg_send![layer, setContentsScale: scale];
+
+            // Update the wgpu renderer's surface configuration.
+            let pixel_w = (new_w * new_scale) as i32;
+            let pixel_h = (new_h * new_scale) as i32;
+            {
+                let mut guard = self.renderer.lock();
+                if let Some(renderer) = guard.as_mut() {
+                    renderer.update_drawable_size(size(
+                        DevicePixels(pixel_w),
+                        DevicePixels(pixel_h),
+                    ));
+                }
+            }
+
+            // Fire the resize callback so GPUI re-layouts at the new size.
+            let cb = self.resize_callback.borrow_mut().take();
+            if let Some(mut cb) = cb {
+                cb(
+                    Size {
+                        width: Pixels(new_w),
+                        height: Pixels(new_h),
+                    },
+                    new_scale,
+                );
+                // Restore the callback for future resize events.
+                let mut slot = self.resize_callback.borrow_mut();
+                if slot.is_none() {
+                    *slot = Some(cb);
+                }
+            }
         }
     }
 }
