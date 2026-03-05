@@ -76,23 +76,29 @@ impl Screen {
     }
 }
 
-// ── Colour palette (Catppuccin Mocha) ────────────────────────────────────────
+// ── Colour palette (Google Material) ─────────────────────────────────────────
 
-pub const BASE: u32 = 0x1e1e2e;
-pub const SURFACE0: u32 = 0x313244;
-pub const SURFACE1: u32 = 0x45475a;
-pub const TEXT: u32 = 0xcdd6f4;
-pub const SUBTEXT: u32 = 0xa6adc8;
-pub const BLUE: u32 = 0x89b4fa;
-pub const GREEN: u32 = 0xa6e3a1;
-pub const RED: u32 = 0xf38ba8;
-pub const MAUVE: u32 = 0xcba6f7;
-pub const YELLOW: u32 = 0xf9e2af;
-pub const PEACH: u32 = 0xfab387;
-pub const TEAL: u32 = 0x94e2d5;
-pub const MANTLE: u32 = 0x181825;
-pub const SKY: u32 = 0x89dceb;
-pub const LAVENDER: u32 = 0xb4befe;
+pub const BASE: u32 = 0x121318;        // Dark surface
+pub const SURFACE0: u32 = 0x1E1F25;   // Dark surface container
+pub const SURFACE1: u32 = 0x282A2F;   // Dark surface container high
+pub const TEXT: u32 = 0xE2E2E9;       // Dark on-surface
+pub const SUBTEXT: u32 = 0xC4C6D0;    // Dark on-surface-variant
+pub const BLUE: u32 = 0x4285F4;       // Google Blue
+pub const GREEN: u32 = 0x34A853;      // Google Green
+pub const RED: u32 = 0xEA4335;        // Google Red
+pub const MAUVE: u32 = 0xA142F4;      // Google Purple
+pub const YELLOW: u32 = 0xFBBC04;     // Google Yellow
+pub const PEACH: u32 = 0xFA7B17;      // Google Orange
+pub const TEAL: u32 = 0x24C1E0;       // Google Teal
+pub const MANTLE: u32 = 0x0D0E13;     // Dark surface container lowest
+pub const SKY: u32 = 0x4FC3F7;        // Light Blue
+pub const LAVENDER: u32 = 0x7B8CF8;   // Indigo light
+
+// Light mode equivalents (used inline in screen render functions).
+pub const LIGHT_TEXT: u32 = 0x1A1B20;
+pub const LIGHT_SUBTEXT: u32 = 0x44474F;
+pub const LIGHT_CARD_BG: u32 = 0xEDEDF4;
+pub const LIGHT_DIVIDER: u32 = 0xC4C6D0;
 
 // ── Safe area ────────────────────────────────────────────────────────────────
 

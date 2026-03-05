@@ -18,21 +18,21 @@ pub use animation_playground::AnimationPlayground;
 pub use menu::{back_button, DemoApp};
 pub use shader_showcase::ShaderShowcase;
 
-// Color palette — Catppuccin Mocha theme (shared across demos)
-pub const BACKGROUND: u32 = 0x1e1e2e;
-pub const SURFACE: u32 = 0x313244;
-pub const OVERLAY: u32 = 0x45475a;
-pub const TEXT: u32 = 0xcdd6f4;
-pub const SUBTEXT: u32 = 0xa6adc8;
-pub const RED: u32 = 0xf38ba8;
-pub const GREEN: u32 = 0xa6e3a1;
-pub const BLUE: u32 = 0x89b4fa;
-pub const YELLOW: u32 = 0xf9e2af;
-pub const PINK: u32 = 0xf5c2e7;
-pub const MAUVE: u32 = 0xcba6f7;
-pub const PEACH: u32 = 0xfab387;
-pub const TEAL: u32 = 0x94e2d5;
-pub const SKY: u32 = 0x89dceb;
+// Color palette — Google Material theme (shared across demos)
+pub const BACKGROUND: u32 = 0x121318;
+pub const SURFACE: u32 = 0x1E1F25;
+pub const OVERLAY: u32 = 0x282A2F;
+pub const TEXT: u32 = 0xE2E2E9;
+pub const SUBTEXT: u32 = 0xC4C6D0;
+pub const RED: u32 = 0xEA4335;
+pub const GREEN: u32 = 0x34A853;
+pub const BLUE: u32 = 0x4285F4;
+pub const YELLOW: u32 = 0xFBBC04;
+pub const PINK: u32 = 0xF538A0;
+pub const MAUVE: u32 = 0xA142F4;
+pub const PEACH: u32 = 0xFA7B17;
+pub const TEAL: u32 = 0x24C1E0;
+pub const SKY: u32 = 0x4FC3F7;
 pub const LAVENDER: u32 = 0xb4befe;
 
 /// Get a colour from the vibrant palette, cycling by `seed`.

@@ -89,7 +89,7 @@ pub fn render(router: &mut Router, cx: &mut Context<Router>) -> impl IntoElement
 
     let dark = router.dark_mode;
     let theme = MaterialTheme::from_appearance(dark);
-    let sub_text: u32 = if dark { 0xa6adc8 } else { 0x6c6f85 };
+    let sub_text: u32 = if dark { super::SUBTEXT } else { super::LIGHT_SUBTEXT };
     let form = &router.form;
     let pull_distance = router.pull_distance;
     let refreshing = router.refreshing;

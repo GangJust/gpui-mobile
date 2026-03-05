@@ -5,7 +5,7 @@
 
 use gpui::{div, prelude::*, rgb, App, MouseDownEvent, Window};
 
-use super::{Router, BLUE, GREEN, MANTLE, MAUVE, PEACH, RED, SURFACE0, SURFACE1, TEXT, YELLOW};
+use super::{Router, BLUE, GREEN, LIGHT_CARD_BG, LIGHT_SUBTEXT, LIGHT_TEXT, MANTLE, MAUVE, PEACH, RED, SURFACE0, SURFACE1, TEXT, YELLOW};
 
 /// Render the Counter screen content area.
 ///
@@ -14,9 +14,9 @@ use super::{Router, BLUE, GREEN, MANTLE, MAUVE, PEACH, RED, SURFACE0, SURFACE1, 
 pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoElement {
     let tap_count = router.tap_count;
     let dark_mode = router.dark_mode;
-    let text_color = if dark_mode { TEXT } else { 0x4c4f69 };
-    let sub_text = if dark_mode { 0xa6adc8_u32 } else { 0x6c6f85 };
-    let card_bg = if dark_mode { SURFACE0 } else { 0xe6e9ef };
+    let text_color = if dark_mode { TEXT } else { LIGHT_TEXT };
+    let sub_text = if dark_mode { super::SUBTEXT } else { LIGHT_SUBTEXT };
+    let card_bg = if dark_mode { SURFACE0 } else { LIGHT_CARD_BG };
 
     // Determine the accent colour based on the count value.
     let count_color = match tap_count {
@@ -190,7 +190,7 @@ fn counter_button(
     dark_mode: bool,
     handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
-    let bg = if dark_mode { SURFACE0 } else { 0xe6e9ef };
+    let bg = if dark_mode { SURFACE0 } else { LIGHT_CARD_BG };
 
     div()
         .flex()
@@ -233,7 +233,7 @@ fn pill_button(
     dark_mode: bool,
     handler: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
-    let bg = if dark_mode { SURFACE0 } else { 0xe6e9ef };
+    let bg = if dark_mode { SURFACE0 } else { LIGHT_CARD_BG };
 
     div()
         .px_5()

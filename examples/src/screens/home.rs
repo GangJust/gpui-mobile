@@ -2,7 +2,7 @@
 
 use gpui::{div, prelude::*, px, rgb};
 
-use super::{Router, Screen, BLUE, GREEN, LAVENDER, MAUVE, PEACH, SKY, SURFACE0, TEAL, TEXT, YELLOW};
+use super::{Router, Screen, BLUE, GREEN, LAVENDER, LIGHT_CARD_BG, LIGHT_SUBTEXT, LIGHT_TEXT, MAUVE, PEACH, SKY, SURFACE0, TEAL, TEXT, YELLOW};
 
 /// Render the Home screen content area.
 ///
@@ -11,12 +11,12 @@ use super::{Router, Screen, BLUE, GREEN, LAVENDER, MAUVE, PEACH, SKY, SURFACE0, 
 pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoElement {
     let user_name = router.user_name.clone();
     let tap_count = router.tap_count;
-    let text_color = if router.dark_mode { TEXT } else { 0x4c4f69 };
-    let card_bg = if router.dark_mode { SURFACE0 } else { 0xe6e9ef };
+    let text_color = if router.dark_mode { TEXT } else { LIGHT_TEXT };
+    let card_bg = if router.dark_mode { SURFACE0 } else { LIGHT_CARD_BG };
     let sub_text = if router.dark_mode {
-        0xa6adc8_u32
+        super::SUBTEXT
     } else {
-        0x6c6f85
+        LIGHT_SUBTEXT
     };
 
     div()
@@ -55,7 +55,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                     div()
                         .text_sm()
                         .text_color(rgb(sub_text))
-                        .child("Catppuccin Mocha palette"),
+                        .child("Google colour palette"),
                 )
                 .child(
                     div()

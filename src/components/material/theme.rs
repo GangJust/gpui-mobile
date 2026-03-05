@@ -172,56 +172,56 @@ pub struct MaterialTheme {
 }
 
 impl MaterialTheme {
-    /// Returns the Material Design 3 baseline **light** color scheme.
+    /// Returns the Material Design 3 **light** color scheme.
     ///
-    /// Based on the default purple primary (M3 baseline).
+    /// Based on Google Blue (#4285F4) as the seed color.
     pub fn light() -> Self {
         Self {
-            // Core — primary
-            primary: 0x6750A4,
+            // Core — primary (Google Blue)
+            primary: 0x005AC1,
             on_primary: 0xFFFFFF,
-            primary_container: 0xEADDFF,
-            on_primary_container: 0x21005E,
+            primary_container: 0xD8E2FF,
+            on_primary_container: 0x001A41,
 
             // Core — secondary
-            secondary: 0x625B71,
+            secondary: 0x575E71,
             on_secondary: 0xFFFFFF,
-            secondary_container: 0xE8DEF8,
-            on_secondary_container: 0x1D192B,
+            secondary_container: 0xDBE2F9,
+            on_secondary_container: 0x141B2C,
 
             // Core — tertiary
-            tertiary: 0x7D5260,
+            tertiary: 0x715573,
             on_tertiary: 0xFFFFFF,
-            tertiary_container: 0xFFD8E4,
-            on_tertiary_container: 0x31111D,
+            tertiary_container: 0xFCD7FB,
+            on_tertiary_container: 0x2A132D,
 
-            // Error
-            error: 0xB3261E,
+            // Error (Google Red)
+            error: 0xBA1A1A,
             on_error: 0xFFFFFF,
-            error_container: 0xF9DEDC,
-            on_error_container: 0x410E0B,
+            error_container: 0xFFDAD6,
+            on_error_container: 0x410002,
 
             // Surface
-            surface: 0xFEF7FF,
-            on_surface: 0x1D1B20,
-            on_surface_variant: 0x49454F,
+            surface: 0xF9F9FF,
+            on_surface: 0x1A1B20,
+            on_surface_variant: 0x44474F,
 
             surface_container_lowest: 0xFFFFFF,
-            surface_container_low: 0xF7F2FA,
-            surface_container: 0xF3EDF7,
-            surface_container_high: 0xECE6F0,
-            surface_container_highest: 0xE6E0E9,
+            surface_container_low: 0xF3F3FA,
+            surface_container: 0xEDEDF4,
+            surface_container_high: 0xE8E7EE,
+            surface_container_highest: 0xE2E2E9,
 
-            surface_dim: 0xDED8E1,
-            surface_bright: 0xFEF7FF,
+            surface_dim: 0xDAD9E0,
+            surface_bright: 0xF9F9FF,
 
-            inverse_surface: 0x322F35,
-            inverse_on_surface: 0xF5EFF7,
-            inverse_primary: 0xD0BCFF,
+            inverse_surface: 0x2F3036,
+            inverse_on_surface: 0xF1F0F7,
+            inverse_primary: 0xADC6FF,
 
             // Outline
-            outline: 0x79747E,
-            outline_variant: 0xCAC4D0,
+            outline: 0x74777F,
+            outline_variant: 0xC4C6D0,
 
             // Misc
             scrim: 0x000000,
@@ -231,56 +231,56 @@ impl MaterialTheme {
         }
     }
 
-    /// Returns the Material Design 3 baseline **dark** color scheme.
+    /// Returns the Material Design 3 **dark** color scheme.
     ///
-    /// Based on the default purple primary (M3 baseline).
+    /// Based on Google Blue (#4285F4) as the seed color.
     pub fn dark() -> Self {
         Self {
-            // Core — primary
-            primary: 0xD0BCFF,
-            on_primary: 0x381E72,
-            primary_container: 0x4F378B,
-            on_primary_container: 0xEADDFF,
+            // Core — primary (Google Blue)
+            primary: 0xADC6FF,
+            on_primary: 0x002E69,
+            primary_container: 0x004494,
+            on_primary_container: 0xD8E2FF,
 
             // Core — secondary
-            secondary: 0xCCC2DC,
-            on_secondary: 0x332D41,
-            secondary_container: 0x4A4458,
-            on_secondary_container: 0xE8DEF8,
+            secondary: 0xBFC6DC,
+            on_secondary: 0x293042,
+            secondary_container: 0x3F4759,
+            on_secondary_container: 0xDBE2F9,
 
             // Core — tertiary
-            tertiary: 0xEFB8C8,
-            on_tertiary: 0x492532,
-            tertiary_container: 0x633B48,
-            on_tertiary_container: 0xFFD8E4,
+            tertiary: 0xDFBBDF,
+            on_tertiary: 0x402843,
+            tertiary_container: 0x593D5B,
+            on_tertiary_container: 0xFCD7FB,
 
-            // Error
-            error: 0xF2B8B5,
-            on_error: 0x601410,
-            error_container: 0x8C1D18,
-            on_error_container: 0xF9DEDC,
+            // Error (Google Red)
+            error: 0xFFB4AB,
+            on_error: 0x690005,
+            error_container: 0x93000A,
+            on_error_container: 0xFFDAD6,
 
             // Surface
-            surface: 0x141218,
-            on_surface: 0xE6E0E9,
-            on_surface_variant: 0xCAC4D0,
+            surface: 0x121318,
+            on_surface: 0xE2E2E9,
+            on_surface_variant: 0xC4C6D0,
 
-            surface_container_lowest: 0x0F0D13,
-            surface_container_low: 0x1D1B20,
-            surface_container: 0x211F26,
-            surface_container_high: 0x2B2930,
-            surface_container_highest: 0x36343B,
+            surface_container_lowest: 0x0D0E13,
+            surface_container_low: 0x1A1B20,
+            surface_container: 0x1E1F25,
+            surface_container_high: 0x282A2F,
+            surface_container_highest: 0x33353A,
 
-            surface_dim: 0x141218,
-            surface_bright: 0x3B383E,
+            surface_dim: 0x121318,
+            surface_bright: 0x38393F,
 
-            inverse_surface: 0xE6E0E9,
-            inverse_on_surface: 0x322F35,
-            inverse_primary: 0x6750A4,
+            inverse_surface: 0xE2E2E9,
+            inverse_on_surface: 0x2F3036,
+            inverse_primary: 0x005AC1,
 
             // Outline
-            outline: 0x938F99,
-            outline_variant: 0x49454F,
+            outline: 0x8E9099,
+            outline_variant: 0x44474F,
 
             // Misc
             scrim: 0x000000,

@@ -2,15 +2,15 @@
 
 use gpui::{div, prelude::*, px, rgb};
 
-use super::{Router, BLUE, GREEN, MAUVE, PEACH, SURFACE0, SURFACE1, TEAL, TEXT, YELLOW};
+use super::{Router, BLUE, GREEN, LIGHT_CARD_BG, LIGHT_DIVIDER, LIGHT_SUBTEXT, LIGHT_TEXT, MAUVE, PEACH, SURFACE0, SURFACE1, TEAL, TEXT, YELLOW};
 
 /// Render the Packages demo screen.
 pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoElement {
     let dark_mode = router.dark_mode;
-    let text_color = if dark_mode { TEXT } else { 0x4c4f69 };
-    let sub_text: u32 = if dark_mode { 0xa6adc8 } else { 0x6c6f85 };
-    let card_bg = if dark_mode { SURFACE0 } else { 0xe6e9ef };
-    let divider_color = if dark_mode { SURFACE1 } else { 0xdce0e8 };
+    let text_color = if dark_mode { TEXT } else { LIGHT_TEXT };
+    let sub_text: u32 = if dark_mode { super::SUBTEXT } else { LIGHT_SUBTEXT };
+    let card_bg = if dark_mode { SURFACE0 } else { LIGHT_CARD_BG };
+    let divider_color = if dark_mode { SURFACE1 } else { LIGHT_DIVIDER };
 
     let mut root = div().flex().flex_col().flex_1().gap_4().px_4().py_6();
 
