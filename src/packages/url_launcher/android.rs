@@ -4,15 +4,15 @@ use jni::objects::JValue;
 pub fn launch_url(url: &str) -> Result<bool, String> {
     let url = url.to_owned();
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         let intent = create_view_intent(env, &url)?;
 
         // activity.startActivity(intent)
         let result = env.call_method(
             &activity,
-            "startActivity",
-            "(Landroid/content/Intent;)V",
+            jni::jni_str!("startActivity"),
+            jni::jni_sig!("(Landroid/content/Intent;)V"),
             &[JValue::Object(&intent)],
         );
         match result {
@@ -28,7 +28,7 @@ pub fn launch_url(url: &str) -> Result<bool, String> {
 pub fn can_launch_url(url: &str) -> Result<bool, String> {
     let url = url.to_owned();
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         let intent = create_view_intent(env, &url)?;
 
@@ -36,8 +36,8 @@ pub fn can_launch_url(url: &str) -> Result<bool, String> {
         let pm = env
             .call_method(
                 &activity,
-                "getPackageManager",
-                "()Landroid/content/pm/PackageManager;",
+                jni::jni_str!("getPackageManager"),
+                jni::jni_sig!("()Landroid/content/pm/PackageManager;"),
                 &[],
             )
             .and_then(|v| v.l())
@@ -50,8 +50,8 @@ pub fn can_launch_url(url: &str) -> Result<bool, String> {
         let resolved = env
             .call_method(
                 &pm,
-                "resolveActivity",
-                "(Landroid/content/Intent;I)Landroid/content/pm/ResolveInfo;",
+                jni::jni_str!("resolveActivity"),
+                jni::jni_sig!("(Landroid/content/Intent;I)Landroid/content/pm/ResolveInfo;"),
                 &[JValue::Object(&intent), JValue::Int(0)],
             )
             .and_then(|v| v.l());
@@ -75,9 +75,9 @@ fn create_view_intent<'local>(
     let jurl = env.new_string(url).e()?;
     let uri = env
         .call_static_method(
-            "android/net/Uri",
-            "parse",
-            "(Ljava/lang/String;)Landroid/net/Uri;",
+            jni::jni_str!("android/net/Uri"),
+            jni::jni_str!("parse"),
+            jni::jni_sig!("(Ljava/lang/String;)Landroid/net/Uri;"),
             &[JValue::Object(&jurl)],
         )
         .and_then(|v| v.l())
@@ -90,8 +90,8 @@ fn create_view_intent<'local>(
     let action_view = env.new_string("android.intent.action.VIEW").e()?;
     let intent = env
         .new_object(
-            "android/content/Intent",
-            "(Ljava/lang/String;Landroid/net/Uri;)V",
+            jni::jni_str!("android/content/Intent"),
+            jni::jni_sig!("(Ljava/lang/String;Landroid/net/Uri;)V"),
             &[JValue::Object(&action_view), JValue::Object(&uri)],
         )
         .e()?;

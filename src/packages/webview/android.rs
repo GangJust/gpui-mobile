@@ -6,13 +6,13 @@ pub fn load_url(url: &str, settings: &WebViewSettings) -> Result<WebViewHandle, 
     let url = url.to_owned();
     let settings = settings.clone();
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         // WebView webview = new WebView(activity);
         let webview = env
             .new_object(
-                "android/webkit/WebView",
-                "(Landroid/content/Context;)V",
+                jni::jni_str!("android/webkit/WebView"),
+                jni::jni_sig!("(Landroid/content/Context;)V"),
                 &[JValue::Object(&activity)],
             )
             .e()?;
@@ -23,8 +23,8 @@ pub fn load_url(url: &str, settings: &WebViewSettings) -> Result<WebViewHandle, 
         let jurl = env.new_string(&url).e()?;
         let _ = env.call_method(
             &webview,
-            "loadUrl",
-            "(Ljava/lang/String;)V",
+            jni::jni_str!("loadUrl"),
+            jni::jni_sig!("(Ljava/lang/String;)V"),
             &[JValue::Object(&jurl)],
         );
         let _ = env.exception_clear();
@@ -43,12 +43,12 @@ pub fn load_html(html: &str, settings: &WebViewSettings) -> Result<WebViewHandle
     let html = html.to_owned();
     let settings = settings.clone();
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         let webview = env
             .new_object(
-                "android/webkit/WebView",
-                "(Landroid/content/Context;)V",
+                jni::jni_str!("android/webkit/WebView"),
+                jni::jni_sig!("(Landroid/content/Context;)V"),
                 &[JValue::Object(&activity)],
             )
             .e()?;
@@ -61,8 +61,8 @@ pub fn load_html(html: &str, settings: &WebViewSettings) -> Result<WebViewHandle
         let encoding = env.new_string("UTF-8").e()?;
         let _ = env.call_method(
             &webview,
-            "loadData",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+            jni::jni_str!("loadData"),
+            jni::jni_sig!("(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
             &[JValue::Object(&jhtml), JValue::Object(&mime), JValue::Object(&encoding)],
         );
         let _ = env.exception_clear();
@@ -80,13 +80,13 @@ pub fn evaluate_javascript(handle: &WebViewHandle, script: &str) -> Result<(), S
     let ptr = handle.ptr;
     let script = script.to_owned();
     jni_helpers::with_env(|env| {
-        let webview = unsafe { JObject::from_raw(ptr as jni::sys::jobject) };
+        let webview = unsafe { JObject::from_raw(env, ptr as jni::sys::jobject) };
 
         let jscript = env.new_string(&script).e()?;
         let _ = env.call_method(
             &webview,
-            "evaluateJavascript",
-            "(Ljava/lang/String;Landroid/webkit/ValueCallback;)V",
+            jni::jni_str!("evaluateJavascript"),
+            jni::jni_sig!("(Ljava/lang/String;Landroid/webkit/ValueCallback;)V"),
             &[JValue::Object(&jscript), JValue::Object(&JObject::null())],
         );
         let _ = env.exception_clear();
@@ -96,25 +96,26 @@ pub fn evaluate_javascript(handle: &WebViewHandle, script: &str) -> Result<(), S
 }
 
 pub fn dismiss(handle: WebViewHandle) -> Result<(), String> {
+    let ptr = handle.ptr;
     jni_helpers::with_env(|env| {
-        let webview = unsafe { JObject::from_raw(handle.ptr as jni::sys::jobject) };
+        let webview = unsafe { JObject::from_raw(env, ptr as jni::sys::jobject) };
 
         // Get parent ViewGroup and remove the webview
         let parent = env
             .call_method(
                 &webview,
-                "getParent",
-                "()Landroid/view/ViewParent;",
+                jni::jni_str!("getParent"),
+                jni::jni_sig!("()Landroid/view/ViewParent;"),
                 &[],
             )
-            .and_then(|v| v.l());
+            .and_then(|v: jni::objects::JValueOwned| v.l());
 
         if let Ok(parent) = parent {
             if !parent.is_null() {
                 let _ = env.call_method(
                     &parent,
-                    "removeView",
-                    "(Landroid/view/View;)V",
+                    jni::jni_str!("removeView"),
+                    jni::jni_sig!("(Landroid/view/View;)V"),
                     &[JValue::Object(&webview)],
                 );
                 let _ = env.exception_clear();
@@ -122,13 +123,14 @@ pub fn dismiss(handle: WebViewHandle) -> Result<(), String> {
         }
 
         // webview.destroy()
-        let _ = env.call_method(&webview, "destroy", "()V", &[]);
+        let _ = env.call_method(&webview, jni::jni_str!("destroy"), jni::jni_sig!("()V"), &[]);
         let _ = env.exception_clear();
 
-        // Delete the global ref via raw JNI (GlobalRef::from_raw is private in jni 0.21)
+        // Delete the global ref via raw JNI
         unsafe {
             let raw_env = env.get_raw();
-            (**raw_env).DeleteGlobalRef.unwrap()(raw_env, handle.ptr as jni::sys::jobject);
+            let interface: *const jni::sys::JNINativeInterface_ = *raw_env;
+            ((*interface).v1_1.DeleteGlobalRef)(raw_env, ptr as jni::sys::jobject);
         }
 
         Ok(())
@@ -144,8 +146,8 @@ fn configure_webview(
     let ws = env
         .call_method(
             webview,
-            "getSettings",
-            "()Landroid/webkit/WebSettings;",
+            jni::jni_str!("getSettings"),
+            jni::jni_sig!("()Landroid/webkit/WebSettings;"),
             &[],
         )
         .and_then(|v| v.l())
@@ -154,25 +156,25 @@ fn configure_webview(
     // ws.setJavaScriptEnabled(...)
     let _ = env.call_method(
         &ws,
-        "setJavaScriptEnabled",
-        "(Z)V",
-        &[JValue::Bool(settings.javascript_enabled as u8)],
+        jni::jni_str!("setJavaScriptEnabled"),
+        jni::jni_sig!("(Z)V"),
+        &[JValue::Bool(settings.javascript_enabled)],
     );
 
     // ws.setDomStorageEnabled(...)
     let _ = env.call_method(
         &ws,
-        "setDomStorageEnabled",
-        "(Z)V",
-        &[JValue::Bool(settings.dom_storage_enabled as u8)],
+        jni::jni_str!("setDomStorageEnabled"),
+        jni::jni_sig!("(Z)V"),
+        &[JValue::Bool(settings.dom_storage_enabled)],
     );
 
     // ws.setSupportZoom(...)
     let _ = env.call_method(
         &ws,
-        "setSupportZoom",
-        "(Z)V",
-        &[JValue::Bool(settings.zoom_enabled as u8)],
+        jni::jni_str!("setSupportZoom"),
+        jni::jni_sig!("(Z)V"),
+        &[JValue::Bool(settings.zoom_enabled)],
     );
 
     // User agent
@@ -180,8 +182,8 @@ fn configure_webview(
         if let Ok(jua) = env.new_string(ua) {
             let _ = env.call_method(
                 &ws,
-                "setUserAgentString",
-                "(Ljava/lang/String;)V",
+                jni::jni_str!("setUserAgentString"),
+                jni::jni_sig!("(Ljava/lang/String;)V"),
                 &[JValue::Object(&jua)],
             );
         }
@@ -199,8 +201,8 @@ fn add_to_content_view(
     // FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
     let params = env
         .new_object(
-            "android/widget/FrameLayout$LayoutParams",
-            "(II)V",
+            jni::jni_str!("android/widget/FrameLayout$LayoutParams"),
+            jni::jni_sig!("(II)V"),
             &[JValue::Int(-1), JValue::Int(-1)], // MATCH_PARENT = -1
         )
         .e()?;
@@ -208,8 +210,8 @@ fn add_to_content_view(
     // activity.addContentView(webview, params)
     let _ = env.call_method(
         activity,
-        "addContentView",
-        "(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V",
+        jni::jni_str!("addContentView"),
+        jni::jni_sig!("(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V"),
         &[JValue::Object(webview), JValue::Object(&params)],
     );
     let _ = env.exception_clear();

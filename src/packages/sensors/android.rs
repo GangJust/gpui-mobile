@@ -10,7 +10,7 @@ const TYPE_PRESSURE: i32 = 6;
 
 pub fn available_sensors() -> SensorAvailability {
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         let sm = match get_sensor_manager(env, &activity) {
             Some(sm) => sm,
@@ -56,8 +56,8 @@ fn get_sensor_manager<'local>(
     let sm = env
         .call_method(
             activity,
-            "getSystemService",
-            "(Ljava/lang/String;)Ljava/lang/Object;",
+            jni::jni_str!("getSystemService"),
+            jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
             &[JValue::Object(&service_name)],
         )
         .and_then(|v| v.l())
@@ -78,8 +78,8 @@ fn has_sensor(
     match env
         .call_method(
             sm,
-            "getDefaultSensor",
-            "(I)Landroid/hardware/Sensor;",
+            jni::jni_str!("getDefaultSensor"),
+            jni::jni_sig!("(I)Landroid/hardware/Sensor;"),
             &[JValue::Int(sensor_type)],
         )
         .and_then(|v| v.l())

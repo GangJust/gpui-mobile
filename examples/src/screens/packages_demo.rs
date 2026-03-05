@@ -379,7 +379,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                                         let settings = gpui_mobile::packages::webview::WebViewSettings::default();
                                         let html = "<html><body style='background:#121318;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui'><h1>Hello from GPUI WebView!</h1></body></html>";
                                         match gpui_mobile::packages::webview::load_html(html, &settings) {
-                                            Ok(handle) => {
+                                            Ok(_handle) => {
                                                 log::info!("WebView loaded successfully");
                                             }
                                             Err(e) => {
@@ -411,7 +411,7 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
                                     cx.listener(|_this, _, _, cx| {
                                         let settings = gpui_mobile::packages::webview::WebViewSettings::default();
                                         match gpui_mobile::packages::webview::load_url("https://google.com", &settings) {
-                                            Ok(handle) => {
+                                            Ok(_handle) => {
                                                 log::info!("WebView loaded URL successfully");
                                             }
                                             Err(e) => {

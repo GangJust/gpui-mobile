@@ -4,11 +4,11 @@ use jni::objects::JValue;
 
 pub fn get_package_info() -> Result<PackageInfo, String> {
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         // activity.getPackageName() → String
         let pkg_name_obj = env
-            .call_method(&activity, "getPackageName", "()Ljava/lang/String;", &[])
+            .call_method(&activity, jni::jni_str!("getPackageName"), jni::jni_sig!("()Ljava/lang/String;"), &[])
             .and_then(|v| v.l())
             .e()?;
         let package_name = get_string(env, &pkg_name_obj);
@@ -17,8 +17,8 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
         let pm = env
             .call_method(
                 &activity,
-                "getPackageManager",
-                "()Landroid/content/pm/PackageManager;",
+                jni::jni_str!("getPackageManager"),
+                jni::jni_sig!("()Landroid/content/pm/PackageManager;"),
                 &[],
             )
             .and_then(|v| v.l())
@@ -32,8 +32,8 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
         let pkg_info = env
             .call_method(
                 &pm,
-                "getPackageInfo",
-                "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;",
+                jni::jni_str!("getPackageInfo"),
+                jni::jni_sig!("(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;"),
                 &[JValue::Object(&jpkg), JValue::Int(0)],
             )
             .and_then(|v| v.l())
@@ -44,7 +44,7 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
 
         // versionName: String
         let version = match env
-            .get_field(&pkg_info, "versionName", "Ljava/lang/String;")
+            .get_field(&pkg_info, jni::jni_str!("versionName"), jni::jni_sig!("Ljava/lang/String;"))
             .and_then(|v| v.l())
         {
             Ok(vn) => get_string(env, &vn),
@@ -56,7 +56,7 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
 
         // versionCode: int
         let build_number = match env
-            .get_field(&pkg_info, "versionCode", "I")
+            .get_field(&pkg_info, jni::jni_str!("versionCode"), jni::jni_sig!("I"))
             .and_then(|v| v.i())
         {
             Ok(vc) => vc.to_string(),
@@ -71,8 +71,8 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
             let app_info = env
                 .get_field(
                     &pkg_info,
-                    "applicationInfo",
-                    "Landroid/content/pm/ApplicationInfo;",
+                    jni::jni_str!("applicationInfo"),
+                    jni::jni_sig!("Landroid/content/pm/ApplicationInfo;"),
                 )
                 .and_then(|v| v.l())
                 .ok()?;
@@ -82,8 +82,8 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
             let cs = env
                 .call_method(
                     &pm,
-                    "getApplicationLabel",
-                    "(Landroid/content/pm/ApplicationInfo;)Ljava/lang/CharSequence;",
+                    jni::jni_str!("getApplicationLabel"),
+                    jni::jni_sig!("(Landroid/content/pm/ApplicationInfo;)Ljava/lang/CharSequence;"),
                     &[JValue::Object(&app_info)],
                 )
                 .and_then(|v| v.l())
@@ -92,7 +92,7 @@ pub fn get_package_info() -> Result<PackageInfo, String> {
                 return None;
             }
             let label = env
-                .call_method(&cs, "toString", "()Ljava/lang/String;", &[])
+                .call_method(&cs, jni::jni_str!("toString"), jni::jni_sig!("()Ljava/lang/String;"), &[])
                 .and_then(|v| v.l())
                 .ok()?;
             Some(get_string(env, &label))

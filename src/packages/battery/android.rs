@@ -35,15 +35,15 @@ pub fn battery_state() -> BatteryState {
 
 pub fn is_battery_save_mode() -> bool {
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         // PowerManager pm = (PowerManager) context.getSystemService("power");
         let service_name = env.new_string("power").map_err(|e| e.to_string())?;
         let pm = match env
             .call_method(
                 &activity,
-                "getSystemService",
-                "(Ljava/lang/String;)Ljava/lang/Object;",
+                jni::jni_str!("getSystemService"),
+                jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
                 &[JValue::Object(&service_name)],
             )
             .and_then(|v| v.l())
@@ -57,7 +57,7 @@ pub fn is_battery_save_mode() -> bool {
 
         // pm.isPowerSaveMode()
         match env
-            .call_method(&pm, "isPowerSaveMode", "()Z", &[])
+            .call_method(&pm, jni::jni_str!("isPowerSaveMode"), jni::jni_sig!("()Z"), &[])
             .and_then(|v| v.z())
         {
             Ok(v) => Ok(v),
@@ -75,14 +75,14 @@ pub fn is_battery_save_mode() -> bool {
 /// Returns `(level, scale, status)` or None on failure.
 fn read_battery_sticky() -> Option<(i32, i32, i32)> {
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         // IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
         let action = env.new_string("android.intent.action.BATTERY_CHANGED").map_err(|e| e.to_string())?;
         let filter = env
             .new_object(
-                "android/content/IntentFilter",
-                "(Ljava/lang/String;)V",
+                jni::jni_str!("android/content/IntentFilter"),
+                jni::jni_sig!("(Ljava/lang/String;)V"),
                 &[JValue::Object(&action)],
             )
             .map_err(|e| e.to_string())?;
@@ -91,8 +91,8 @@ fn read_battery_sticky() -> Option<(i32, i32, i32)> {
         let battery_intent = env
             .call_method(
                 &activity,
-                "registerReceiver",
-                "(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)Landroid/content/Intent;",
+                jni::jni_str!("registerReceiver"),
+                jni::jni_sig!("(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)Landroid/content/Intent;"),
                 &[JValue::Object(&jni::objects::JObject::null()), JValue::Object(&filter)],
             )
             .and_then(|v| v.l())
@@ -106,8 +106,8 @@ fn read_battery_sticky() -> Option<(i32, i32, i32)> {
         let level = env
             .call_method(
                 &battery_intent,
-                "getIntExtra",
-                "(Ljava/lang/String;I)I",
+                jni::jni_str!("getIntExtra"),
+                jni::jni_sig!("(Ljava/lang/String;I)I"),
                 &[JValue::Object(&key_level), JValue::Int(-1)],
             )
             .and_then(|v| v.i())
@@ -118,8 +118,8 @@ fn read_battery_sticky() -> Option<(i32, i32, i32)> {
         let scale = env
             .call_method(
                 &battery_intent,
-                "getIntExtra",
-                "(Ljava/lang/String;I)I",
+                jni::jni_str!("getIntExtra"),
+                jni::jni_sig!("(Ljava/lang/String;I)I"),
                 &[JValue::Object(&key_scale), JValue::Int(-1)],
             )
             .and_then(|v| v.i())
@@ -130,8 +130,8 @@ fn read_battery_sticky() -> Option<(i32, i32, i32)> {
         let status = env
             .call_method(
                 &battery_intent,
-                "getIntExtra",
-                "(Ljava/lang/String;I)I",
+                jni::jni_str!("getIntExtra"),
+                jni::jni_sig!("(Ljava/lang/String;I)I"),
                 &[JValue::Object(&key_status), JValue::Int(-1)],
             )
             .and_then(|v| v.i())

@@ -4,16 +4,16 @@ use jni::objects::{JObject, JValue};
 
 pub fn vibrate(duration_ms: u32) -> Result<(), String> {
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         let vibrator = get_vibrator_service(env, &activity)?;
 
         // Try VibrationEffect.createOneShot (API 26+)
-        if let Ok(ve_cls) = env.find_class("android/os/VibrationEffect") {
+        if let Ok(ve_cls) = env.find_class(jni::jni_str!("android/os/VibrationEffect")) {
             if let Ok(effect) = env.call_static_method(
                 &ve_cls,
-                "createOneShot",
-                "(JI)Landroid/os/VibrationEffect;",
+                jni::jni_str!("createOneShot"),
+                jni::jni_sig!("(JI)Landroid/os/VibrationEffect;"),
                 &[JValue::Long(duration_ms as i64), JValue::Int(-1)], // DEFAULT_AMPLITUDE = -1
             )
             .and_then(|v| v.l())
@@ -21,8 +21,8 @@ pub fn vibrate(duration_ms: u32) -> Result<(), String> {
                 if !effect.is_null() {
                     let _ = env.call_method(
                         &vibrator,
-                        "vibrate",
-                        "(Landroid/os/VibrationEffect;)V",
+                        jni::jni_str!("vibrate"),
+                        jni::jni_sig!("(Landroid/os/VibrationEffect;)V"),
                         &[JValue::Object(&effect)],
                     );
                     let _ = env.exception_clear();
@@ -35,8 +35,8 @@ pub fn vibrate(duration_ms: u32) -> Result<(), String> {
         // Fallback: vibrator.vibrate(long) for older APIs
         let _ = env.call_method(
             &vibrator,
-            "vibrate",
-            "(J)V",
+            jni::jni_str!("vibrate"),
+            jni::jni_sig!("(J)V"),
             &[JValue::Long(duration_ms as i64)],
         );
         let _ = env.exception_clear();
@@ -57,11 +57,11 @@ pub fn haptic_feedback(feedback: HapticFeedback) -> Result<(), String> {
     };
 
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         // activity.getWindow().getDecorView().performHapticFeedback(constant)
         let window = env
-            .call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])
+            .call_method(&activity, jni::jni_str!("getWindow"), jni::jni_sig!("()Landroid/view/Window;"), &[])
             .and_then(|v| v.l())
             .e()?;
         if window.is_null() {
@@ -69,7 +69,7 @@ pub fn haptic_feedback(feedback: HapticFeedback) -> Result<(), String> {
         }
 
         let decor = env
-            .call_method(&window, "getDecorView", "()Landroid/view/View;", &[])
+            .call_method(&window, jni::jni_str!("getDecorView"), jni::jni_sig!("()Landroid/view/View;"), &[])
             .and_then(|v| v.l())
             .e()?;
         if decor.is_null() {
@@ -78,8 +78,8 @@ pub fn haptic_feedback(feedback: HapticFeedback) -> Result<(), String> {
 
         let _ = env.call_method(
             &decor,
-            "performHapticFeedback",
-            "(I)Z",
+            jni::jni_str!("performHapticFeedback"),
+            jni::jni_sig!("(I)Z"),
             &[JValue::Int(constant)],
         );
         let _ = env.exception_clear();
@@ -89,11 +89,11 @@ pub fn haptic_feedback(feedback: HapticFeedback) -> Result<(), String> {
 
 pub fn can_vibrate() -> bool {
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
 
         let vibrator = get_vibrator_service(env, &activity)?;
 
-        let result = env.call_method(&vibrator, "hasVibrator", "()Z", &[])
+        let result = env.call_method(&vibrator, jni::jni_str!("hasVibrator"), jni::jni_sig!("()Z"), &[])
             .and_then(|v| v.z())
             .unwrap_or(false);
         Ok(result)
@@ -109,8 +109,8 @@ fn get_vibrator_service<'local>(
     let vibrator = env
         .call_method(
             activity,
-            "getSystemService",
-            "(Ljava/lang/String;)Ljava/lang/Object;",
+            jni::jni_str!("getSystemService"),
+            jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
             &[JValue::Object(&service_name)],
         )
         .and_then(|v| v.l())

@@ -4,7 +4,7 @@ use jni::objects::JValue;
 
 pub fn get_network_info() -> Result<NetworkInfo, String> {
     jni_helpers::with_env(|env| {
-        let activity = jni_helpers::activity()?;
+        let activity = jni_helpers::activity(env)?;
         let mut info = NetworkInfo::default();
 
         // context.getSystemService("wifi") → WifiManager
@@ -12,8 +12,8 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
         let wifi_mgr = match env
             .call_method(
                 &activity,
-                "getSystemService",
-                "(Ljava/lang/String;)Ljava/lang/Object;",
+                jni::jni_str!("getSystemService"),
+                jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
                 &[JValue::Object(&service_name)],
             )
             .and_then(|v| v.l())
@@ -29,8 +29,8 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
         let wifi_info = match env
             .call_method(
                 &wifi_mgr,
-                "getConnectionInfo",
-                "()Landroid/net/wifi/WifiInfo;",
+                jni::jni_str!("getConnectionInfo"),
+                jni::jni_sig!("()Landroid/net/wifi/WifiInfo;"),
                 &[],
             )
             .and_then(|v| v.l())
@@ -44,7 +44,7 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
 
         // SSID
         if let Ok(ssid_obj) = env
-            .call_method(&wifi_info, "getSSID", "()Ljava/lang/String;", &[])
+            .call_method(&wifi_info, jni::jni_str!("getSSID"), jni::jni_sig!("()Ljava/lang/String;"), &[])
             .and_then(|v| v.l())
         {
             let ssid = get_string(env, &ssid_obj);
@@ -56,7 +56,7 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
 
         // BSSID
         if let Ok(bssid_obj) = env
-            .call_method(&wifi_info, "getBSSID", "()Ljava/lang/String;", &[])
+            .call_method(&wifi_info, jni::jni_str!("getBSSID"), jni::jni_sig!("()Ljava/lang/String;"), &[])
             .and_then(|v| v.l())
         {
             let bssid = get_string(env, &bssid_obj);
@@ -67,7 +67,7 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
 
         // IP Address
         if let Ok(ip) = env
-            .call_method(&wifi_info, "getIpAddress", "()I", &[])
+            .call_method(&wifi_info, jni::jni_str!("getIpAddress"), jni::jni_sig!("()I"), &[])
             .and_then(|v| v.i())
         {
             if ip != 0 {

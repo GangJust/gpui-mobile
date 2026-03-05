@@ -1658,7 +1658,7 @@ impl PlatformWindow for AndroidPlatformWindow {
         let h: f32 = bounds.size.height.into();
 
         let _ = jni_helpers::with_env(|env| {
-            let activity = jni_helpers::activity()?;
+            let activity = jni_helpers::activity(env)?;
 
             // 1. Get InputMethodManager
             let service_name = env
@@ -1667,8 +1667,8 @@ impl PlatformWindow for AndroidPlatformWindow {
             let imm = env
                 .call_method(
                     &activity,
-                    "getSystemService",
-                    "(Ljava/lang/String;)Ljava/lang/Object;",
+                    jni::jni_str!("getSystemService"),
+                    jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
                     &[JValue::Object(&service_name)],
                 )
                 .and_then(|v| v.l())
@@ -1683,8 +1683,8 @@ impl PlatformWindow for AndroidPlatformWindow {
             // 2. Build CursorAnchorInfo
             let builder = env
                 .new_object(
-                    "android/view/inputmethod/CursorAnchorInfo$Builder",
-                    "()V",
+                    jni::jni_str!("android/view/inputmethod/CursorAnchorInfo$Builder"),
+                    jni::jni_sig!("()V"),
                     &[],
                 )
                 .map_err(|e| {
@@ -1694,8 +1694,8 @@ impl PlatformWindow for AndroidPlatformWindow {
 
             let _ = env.call_method(
                 &builder,
-                "setInsertionMarkerLocation",
-                "(FFFFI)Landroid/view/inputmethod/CursorAnchorInfo$Builder;",
+                jni::jni_str!("setInsertionMarkerLocation"),
+                jni::jni_sig!("(FFFFI)Landroid/view/inputmethod/CursorAnchorInfo$Builder;"),
                 &[
                     JValue::Float(x),
                     JValue::Float(y),
@@ -1709,8 +1709,8 @@ impl PlatformWindow for AndroidPlatformWindow {
             let anchor_info = env
                 .call_method(
                     &builder,
-                    "build",
-                    "()Landroid/view/inputmethod/CursorAnchorInfo;",
+                    jni::jni_str!("build"),
+                    jni::jni_sig!("()Landroid/view/inputmethod/CursorAnchorInfo;"),
                     &[],
                 )
                 .and_then(|v| v.l())
@@ -1724,7 +1724,7 @@ impl PlatformWindow for AndroidPlatformWindow {
 
             // 3. Get decor view: activity.getWindow().getDecorView()
             let window = env
-                .call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])
+                .call_method(&activity, jni::jni_str!("getWindow"), jni::jni_sig!("()Landroid/view/Window;"), &[])
                 .and_then(|v| v.l())
                 .map_err(|e| {
                     let _ = env.exception_clear();
@@ -1735,7 +1735,7 @@ impl PlatformWindow for AndroidPlatformWindow {
             }
 
             let decor_view = env
-                .call_method(&window, "getDecorView", "()Landroid/view/View;", &[])
+                .call_method(&window, jni::jni_str!("getDecorView"), jni::jni_sig!("()Landroid/view/View;"), &[])
                 .and_then(|v| v.l())
                 .map_err(|e| {
                     let _ = env.exception_clear();
@@ -1748,8 +1748,8 @@ impl PlatformWindow for AndroidPlatformWindow {
             // 4. imm.updateCursorAnchorInfo(view, info)
             let _ = env.call_method(
                 &imm,
-                "updateCursorAnchorInfo",
-                "(Landroid/view/View;Landroid/view/inputmethod/CursorAnchorInfo;)V",
+                jni::jni_str!("updateCursorAnchorInfo"),
+                jni::jni_sig!("(Landroid/view/View;Landroid/view/inputmethod/CursorAnchorInfo;)V"),
                 &[JValue::Object(&decor_view), JValue::Object(&anchor_info)],
             );
             let _ = env.exception_clear();

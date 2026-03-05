@@ -732,7 +732,7 @@ impl AndroidPlatform {
         use jni::objects::JValue;
 
         jni_helpers::with_env(|env| {
-            let activity = jni_helpers::activity()?;
+            let activity = jni_helpers::activity(env)?;
 
             // activity.getSystemService("input_method")
             let service_name = env
@@ -741,8 +741,8 @@ impl AndroidPlatform {
             let imm = env
                 .call_method(
                     &activity,
-                    "getSystemService",
-                    "(Ljava/lang/String;)Ljava/lang/Object;",
+                    jni::jni_str!("getSystemService"),
+                    jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
                     &[JValue::Object(&service_name)],
                 )
                 .and_then(|v| v.l())
@@ -755,8 +755,8 @@ impl AndroidPlatform {
             let subtype = env
                 .call_method(
                     &imm,
-                    "getCurrentInputMethodSubtype",
-                    "()Landroid/view/inputmethod/InputMethodSubtype;",
+                    jni::jni_str!("getCurrentInputMethodSubtype"),
+                    jni::jni_sig!("()Landroid/view/inputmethod/InputMethodSubtype;"),
                     &[],
                 )
                 .and_then(|v| v.l())
@@ -767,7 +767,7 @@ impl AndroidPlatform {
 
             // subtype.getLocale()
             let locale_obj = env
-                .call_method(&subtype, "getLocale", "()Ljava/lang/String;", &[])
+                .call_method(&subtype, jni::jni_str!("getLocale"), jni::jni_sig!("()Ljava/lang/String;"), &[])
                 .and_then(|v| v.l())
                 .map_err(|e| e.to_string())?;
 
@@ -832,15 +832,15 @@ impl AndroidPlatform {
         use jni::objects::JValue;
 
         jni_helpers::with_env(|env| {
-            let activity = jni_helpers::activity()?;
+            let activity = jni_helpers::activity(env)?;
 
             // activity.getSystemService("power")
             let service_name = env.new_string("power").map_err(|e| e.to_string())?;
             let pm = match env
                 .call_method(
                     &activity,
-                    "getSystemService",
-                    "(Ljava/lang/String;)Ljava/lang/Object;",
+                    jni::jni_str!("getSystemService"),
+                    jni::jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
                     &[JValue::Object(&service_name)],
                 )
                 .and_then(|v| v.l())
@@ -854,7 +854,7 @@ impl AndroidPlatform {
 
             // pm.getCurrentThermalStatus() — API 29+
             let status = match env
-                .call_method(&pm, "getCurrentThermalStatus", "()I", &[])
+                .call_method(&pm, jni::jni_str!("getCurrentThermalStatus"), jni::jni_sig!("()I"), &[])
                 .and_then(|v| v.i())
             {
                 Ok(s) => s,
