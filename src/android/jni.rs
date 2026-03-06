@@ -172,15 +172,12 @@ pub fn find_app_class<'local>(
 ) -> Result<jni::objects::JClass<'local>, String> {
     let act = activity(env)?;
 
-    // activity.getClass()
-    let act_class = env
-        .get_object_class(&act)
-        .map_err(|e| format!("getClass failed: {e}"))?;
-
-    // activityClass.getClassLoader()
+    // activity.getClassLoader() — call on the Context instance directly.
+    // Do NOT use activity.getClass().getClassLoader(): NativeActivity is a
+    // framework class loaded by BootClassLoader, which cannot see app classes.
     let class_loader = env
         .call_method(
-            &act_class,
+            &act,
             jni::jni_str!("getClassLoader"),
             jni::jni_sig!("()Ljava/lang/ClassLoader;"),
             &[],
@@ -188,7 +185,9 @@ pub fn find_app_class<'local>(
         .and_then(|v| v.l())
         .map_err(|e| {
             let _ = env.exception_clear();
-            format!("getClassLoader failed: {e}")
+            let msg = format!("getClassLoader failed: {e}");
+            log::error!("find_app_class({class_name}): {msg}");
+            msg
         })?;
 
     // classLoader.loadClass("dev.gpui.mobile.GpuiHelper")
@@ -202,10 +201,15 @@ pub fn find_app_class<'local>(
         )
         .and_then(|v| v.l())
         .map_err(|e| {
+            // Print full Java stack trace to logcat, then clear.
+            let _ = env.exception_describe();
             let _ = env.exception_clear();
-            format!("loadClass({class_name}) failed: {e}")
+            let msg = format!("loadClass({class_name}) failed: {e}");
+            log::error!("{msg}");
+            msg
         })?;
 
+    log::debug!("find_app_class: loaded {class_name}");
     std::mem::forget(act);
     Ok(unsafe { jni::objects::JClass::from_raw(env, loaded.as_raw()) })
 }
@@ -532,9 +536,9 @@ pub fn run_event_loop(app: &AndroidApp) {
 
         // ── Poll for events (non-blocking) ──
         //
-        // Only set atomic flags inside the callback.  All heavy
-        // processing happens after poll_events returns, where it is
-        // safe to acquire locks and make JNI calls.
+        // Non-blocking poll: process any pending events then immediately
+        // continue to rendering. No sleep — the GPU present call
+        // (get_current_texture / Mailbox) provides natural frame pacing.
         app.poll_events(Some(Duration::ZERO), |event| {
             match event {
                 PollEvent::Main(main_event) => {
@@ -758,9 +762,9 @@ pub fn run_event_loop(app: &AndroidApp) {
             }
         }
 
-        // Yield CPU.
-        std::thread::sleep(Duration::from_millis(4));
-
+        // Yield CPU briefly to avoid starving system threads.
+        // 1ms is enough to prevent ANR while keeping input latency low.
+        std::thread::sleep(Duration::from_millis(1));
     }
 
     log::info!("run_event_loop: exiting main loop");
