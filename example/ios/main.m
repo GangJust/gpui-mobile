@@ -232,6 +232,15 @@
 #endif
 }
 
+- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
+    NSLog(@"GPUI iOS: Open URL: %@", url);
+#ifdef USE_GPUI_RUST
+    NSString *urlString = [url absoluteString];
+    gpui_ios_handle_open_url((__bridge void *)urlString);
+#endif
+    return YES;
+}
+
 - (void)applicationWillTerminate:(UIApplication *)application {
     NSLog(@"GPUI iOS: Will terminate");
 #ifdef USE_GPUI_RUST

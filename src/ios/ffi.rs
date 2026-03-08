@@ -384,6 +384,34 @@ pub extern "C" fn gpui_ios_handle_key_event(
     window.handle_key_event(key_code, modifiers, is_key_down);
 }
 
+/// Called from ObjC when the app receives a URL to open.
+///
+/// Parameters:
+/// - url_ptr: Pointer to an NSString containing the URL
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_ios_handle_open_url(url_ptr: *mut c_void) {
+    if url_ptr.is_null() {
+        return;
+    }
+
+    let url_string = unsafe {
+        use objc::{msg_send, sel, sel_impl};
+        let ns_str = url_ptr as *mut objc::runtime::Object;
+        let cstr: *const std::ffi::c_char = msg_send![ns_str, UTF8String];
+        if cstr.is_null() {
+            return;
+        }
+        std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+    };
+
+    log::info!("GPUI iOS: Received deep link: {}", url_string);
+
+    #[cfg(feature = "deeplink")]
+    {
+        crate::packages::deeplink::ios::handle_open_url(url_string);
+    }
+}
+
 // ── App callback storage ─────────────────────────────────────────────────────
 
 /// Wrapper around an `UnsafeCell<Option<Box<dyn FnOnce(&mut App)>>>`.

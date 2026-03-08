@@ -80,3 +80,9 @@ pub mod calendar;
 
 #[cfg(feature = "maps_launcher")]
 pub mod maps_launcher;
+
+#[cfg(feature = "deeplink")]
+pub mod deeplink;
+
+#[cfg(feature = "microphone")]
+pub mod microphone;

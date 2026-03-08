@@ -58,5 +58,16 @@
     <string>This app needs access to the camera to take photos and videos.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app needs access to the microphone to record video with audio.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>dev.gpui.mobile.example</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>gpui</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

@@ -65,6 +65,13 @@ targets:
           - "-framework SystemConfiguration"
           - "-framework AudioToolbox"
           - "-framework WebKit"
+          - "-framework CoreMedia"
+          - "-framework AVFoundation"
+          - "-framework LocalAuthentication"
+          - "-framework Contacts"
+          - "-framework EventKit"
+          - "-framework StoreKit"
+          - "-framework CoreMotion"
           - "-ObjC"
         # Preprocessor macros — enable Rust GPUI integration
         GCC_PREPROCESSOR_DEFINITIONS:

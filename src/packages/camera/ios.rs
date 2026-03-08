@@ -235,9 +235,9 @@ fn resolution_to_preset(resolution: ResolutionPreset) -> &'static str {
 unsafe fn find_device_by_name(name: &str) -> *mut Object {
     // Use AVCaptureDeviceDiscoverySession to find all cameras
     let device_types: *mut Object = {
-        let wide: *mut Object = msg_send![class!(AVCaptureDeviceType), builtInWideAngleCamera];
-        let ultra: *mut Object = msg_send![class!(AVCaptureDeviceType), builtInUltraWideCamera];
-        let tele: *mut Object = msg_send![class!(AVCaptureDeviceType), builtInTelephotoCamera];
+        let wide = nsstring("AVCaptureDeviceTypeBuiltInWideAngleCamera");
+        let ultra = nsstring("AVCaptureDeviceTypeBuiltInUltraWideCamera");
+        let tele = nsstring("AVCaptureDeviceTypeBuiltInTelephotoCamera");
         msg_send![class!(NSArray),
             arrayWithObjects: [wide, ultra, tele].as_ptr()
             count: 3usize
@@ -279,10 +279,12 @@ unsafe fn find_device_by_name(name: &str) -> *mut Object {
 
 pub fn available_cameras() -> Result<Vec<CameraDescription>, String> {
     unsafe {
+        // AVCaptureDeviceType is an NSString typedef, not an ObjC class.
+        // Use the string constants directly.
         let device_types: *mut Object = {
-            let wide: *mut Object = msg_send![class!(AVCaptureDeviceType), builtInWideAngleCamera];
-            let ultra: *mut Object = msg_send![class!(AVCaptureDeviceType), builtInUltraWideCamera];
-            let tele: *mut Object = msg_send![class!(AVCaptureDeviceType), builtInTelephotoCamera];
+            let wide = nsstring("AVCaptureDeviceTypeBuiltInWideAngleCamera");
+            let ultra = nsstring("AVCaptureDeviceTypeBuiltInUltraWideCamera");
+            let tele = nsstring("AVCaptureDeviceTypeBuiltInTelephotoCamera");
             msg_send![class!(NSArray),
                 arrayWithObjects: [wide, ultra, tele].as_ptr()
                 count: 3usize
