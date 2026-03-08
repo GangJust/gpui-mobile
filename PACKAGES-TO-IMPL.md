@@ -6,17 +6,11 @@ We implement the basic packages used in the apps in the `src/packages` module (e
 eg: src/packages/connectivity/mod.rs,android/,ios/ etc., we can have a common interface in mod.rs and platform-specific implementations in android/ and ios/ folders. The mod.rs file can use conditional compilation to include the appropriate platform-specific implementation based on the target platform.
 Create todos for each package implementation, and track progress in the `TODO.md` file.
 
- 
-**Tier 2 — Networking & Location (critical for connected/location-aware apps)**
-
-8. https://pub.dev/packages/geolocator
-9. https://pub.dev/packages/location
-
-**Tier 3 — User-Facing Features (notifications, sharing, media)**
-
-10. https://pub.dev/packages/flutter_local_notifications
-12. https://pub.dev/packages/video_player
-13. https://pub.dev/packages/just_audio
+8. https://pub.dev/packages/geolocator in src/packages/location/
+9. https://pub.dev/packages/location in src/packages/location/
+10. https://pub.dev/packages/flutter_local_notifications in src/packages/notifications/
+12. https://pub.dev/packages/video_player in src/packages/video_player/
+13. https://pub.dev/packages/just_audio in src/packages/audio/
 
 
 **Tier 5 — Platform-Specific & UI Helpers**
