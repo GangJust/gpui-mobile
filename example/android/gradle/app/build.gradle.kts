@@ -94,8 +94,6 @@ android {
 }
 
 dependencies {
-    // No Java/Kotlin dependencies are needed — the app is 100% native Rust.
-    // If you need to call Java APIs from Rust (e.g. ClipboardManager,
-    // SensorManager), add the appropriate AndroidX libraries here and
-    // access them via JNI from the Rust side.
+    // AndroidX core for NotificationCompat (used by GpuiNotifications)
+    implementation("androidx.core:core:1.12.0")
 }

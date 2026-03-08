@@ -29,6 +29,9 @@
     <!-- Vibration permission -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Notification permission (required on Android 13+ / API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- Camera permission (for image_picker camera source) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

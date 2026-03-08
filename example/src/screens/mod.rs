@@ -197,6 +197,24 @@ pub struct Router {
     /// Last permission status message (for demo display).
     pub perm_status: Option<String>,
 
+    // ── Location state ────────────────────────────────────────────
+    /// Last location result (for demo display).
+    pub location_status: Option<String>,
+
+    // ── Notifications state ───────────────────────────────────────
+    /// Last notification status (for demo display).
+    pub notif_status: Option<String>,
+    /// Notification counter for unique IDs.
+    pub notif_counter: i32,
+
+    // ── Audio state ───────────────────────────────────────────────
+    /// Last audio status (for demo display).
+    pub audio_status: Option<String>,
+
+    // ── Video player state ────────────────────────────────────────
+    /// Last video player status (for demo display).
+    pub video_status: Option<String>,
+
     // ── Feed state ───────────────────────────────────────────────────
     /// Which feed posts are "liked" (by index).
     pub feed_likes: [bool; 6],
@@ -286,6 +304,11 @@ impl Router {
             camera_previewing: false,
             camera_recording: false,
             perm_status: None,
+            location_status: None,
+            notif_status: None,
+            notif_counter: 0,
+            audio_status: None,
+            video_status: None,
             feed_likes: [false; 6],
             feed_pull_start_y: None,
             feed_pull_distance: 0.0,

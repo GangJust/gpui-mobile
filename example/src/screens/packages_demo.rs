@@ -912,6 +912,194 @@ pub fn render(router: &Router, cx: &mut gpui::Context<Router>) -> impl IntoEleme
             card
         });
 
+    // ── Location ──────────────────────────────────────────────────────────────
+    root = root
+        .child(section_header("Location", sub_text))
+        .child({
+            let last_loc = router.location_status.as_deref().unwrap_or("None");
+            info_card(card_bg)
+                .child(kv_row("Result", last_loc, GREEN, text_color, sub_text))
+                .child(divider_line(divider_color))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_2()
+                        .p_3()
+                        .child(
+                            action_button("Service?", GREEN, cx.listener(|this, _, _, cx| {
+                                match gpui_mobile::packages::location::is_location_service_enabled() {
+                                    Ok(enabled) => this.location_status = Some(format!("Location enabled: {enabled}")),
+                                    Err(e) => this.location_status = Some(format!("Error: {e}")),
+                                }
+                                cx.notify();
+                            })),
+                        )
+                        .child(
+                            action_button("Current", BLUE, cx.listener(|_this, _, _, cx| {
+                                cx.spawn(async |this, cx| {
+                                    let result = cx.background_executor().spawn(async {
+                                        let settings = gpui_mobile::packages::location::LocationSettings::default();
+                                        gpui_mobile::packages::location::get_current_position(&settings)
+                                    }).await;
+                                    let _ = this.update(cx, |this, cx| {
+                                        match result {
+                                            Ok(pos) => this.location_status = Some(format!(
+                                                "{:.5}, {:.5} (±{:.0}m)",
+                                                pos.latitude, pos.longitude, pos.accuracy
+                                            )),
+                                            Err(e) => this.location_status = Some(format!("Error: {e}")),
+                                        }
+                                        cx.notify();
+                                    });
+                                }).detach();
+                            })),
+                        )
+                        .child(
+                            action_button("Last Known", TEAL, cx.listener(|_this, _, _, cx| {
+                                cx.spawn(async |this, cx| {
+                                    let result = cx.background_executor().spawn(async {
+                                        gpui_mobile::packages::location::get_last_known_position()
+                                    }).await;
+                                    let _ = this.update(cx, |this, cx| {
+                                        match result {
+                                            Ok(Some(pos)) => this.location_status = Some(format!(
+                                                "{:.5}, {:.5}",
+                                                pos.latitude, pos.longitude
+                                            )),
+                                            Ok(None) => this.location_status = Some("No cached location".into()),
+                                            Err(e) => this.location_status = Some(format!("Error: {e}")),
+                                        }
+                                        cx.notify();
+                                    });
+                                }).detach();
+                            })),
+                        ),
+                )
+        });
+
+    // ── Notifications ────────────────────────────────────────────────────────
+    root = root
+        .child(section_header("Notifications", sub_text))
+        .child({
+            let last_notif = router.notif_status.as_deref().unwrap_or("None");
+            info_card(card_bg)
+                .child(kv_row("Status", last_notif, PEACH, text_color, sub_text))
+                .child(divider_line(divider_color))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_2()
+                        .p_3()
+                        .child(
+                            action_button("Init", PEACH, cx.listener(|this, _, _, cx| {
+                                match gpui_mobile::packages::notifications::initialize() {
+                                    Ok(()) => this.notif_status = Some("Initialized".into()),
+                                    Err(e) => this.notif_status = Some(format!("Error: {e}")),
+                                }
+                                cx.notify();
+                            })),
+                        )
+                        .child(
+                            action_button("Show", MAUVE, cx.listener(|this, _, _, cx| {
+                                this.notif_counter += 1;
+                                let notif = gpui_mobile::packages::notifications::Notification {
+                                    id: this.notif_counter,
+                                    title: format!("Test #{}", this.notif_counter),
+                                    body: "Hello from GPUI!".into(),
+                                    channel: gpui_mobile::packages::notifications::NotificationChannel::default(),
+                                    payload: None,
+                                };
+                                match gpui_mobile::packages::notifications::show(&notif) {
+                                    Ok(()) => this.notif_status = Some(format!("Shown #{}", this.notif_counter)),
+                                    Err(e) => this.notif_status = Some(format!("Error: {e}")),
+                                }
+                                cx.notify();
+                            })),
+                        )
+                        .child(
+                            action_button("Cancel All", YELLOW, cx.listener(|this, _, _, cx| {
+                                match gpui_mobile::packages::notifications::cancel_all() {
+                                    Ok(()) => this.notif_status = Some("All cancelled".into()),
+                                    Err(e) => this.notif_status = Some(format!("Error: {e}")),
+                                }
+                                cx.notify();
+                            })),
+                        ),
+                )
+        });
+
+    // ── Audio Player ─────────────────────────────────────────────────────────
+    root = root
+        .child(section_header("Audio Player", sub_text))
+        .child({
+            let audio_st = router.audio_status.as_deref().unwrap_or("No player");
+            info_card(card_bg)
+                .child(kv_row("Status", audio_st, TEAL, text_color, sub_text))
+                .child(divider_line(divider_color))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_2()
+                        .p_3()
+                        .child(
+                            action_button("Create", TEAL, cx.listener(|this, _, _, cx| {
+                                match gpui_mobile::packages::audio::AudioPlayer::new() {
+                                    Ok(p) => {
+                                        this.audio_status = Some("Player created".into());
+                                        std::mem::forget(p); // leak for demo simplicity
+                                    }
+                                    Err(e) => this.audio_status = Some(format!("Error: {e}")),
+                                }
+                                cx.notify();
+                            })),
+                        )
+                        .child(
+                            action_button("Info", BLUE, cx.listener(|this, _, _, cx| {
+                                this.audio_status = Some("Audio API ready".into());
+                                cx.notify();
+                            })),
+                        ),
+                )
+        });
+
+    // ── Video Player ─────────────────────────────────────────────────────────
+    root = root
+        .child(section_header("Video Player", sub_text))
+        .child({
+            let video_st = router.video_status.as_deref().unwrap_or("No player");
+            info_card(card_bg)
+                .child(kv_row("Status", video_st, MAUVE, text_color, sub_text))
+                .child(divider_line(divider_color))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_2()
+                        .p_3()
+                        .child(
+                            action_button("Create", MAUVE, cx.listener(|this, _, _, cx| {
+                                match gpui_mobile::packages::video_player::VideoPlayer::new() {
+                                    Ok(p) => {
+                                        this.video_status = Some("Player created".into());
+                                        std::mem::forget(p); // leak for demo simplicity
+                                    }
+                                    Err(e) => this.video_status = Some(format!("Error: {e}")),
+                                }
+                                cx.notify();
+                            })),
+                        )
+                        .child(
+                            action_button("Info", GREEN, cx.listener(|this, _, _, cx| {
+                                this.video_status = Some("Video API ready".into());
+                                cx.notify();
+                            })),
+                        ),
+                )
+        });
+
     root
 }
 

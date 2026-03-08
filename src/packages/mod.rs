@@ -50,3 +50,15 @@ pub mod camera;
 
 #[cfg(feature = "permission_handler")]
 pub mod permission_handler;
+
+#[cfg(feature = "notifications")]
+pub mod notifications;
+
+#[cfg(feature = "location")]
+pub mod location;
+
+#[cfg(feature = "audio")]
+pub mod audio;
+
+#[cfg(feature = "video_player")]
+pub mod video_player;
