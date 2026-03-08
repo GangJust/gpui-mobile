@@ -962,7 +962,7 @@ fn render_composer(
                             match gpui_mobile::packages::microphone::start_recording(
                                 &path,
                             ) {
-                                Ok(()) => {
+                                Ok(_) => {
                                     this.chat_mic_recording = true;
                                 }
                                 Err(e) => {
