@@ -491,12 +491,12 @@ impl AndroidWindow {
     pub fn term_window(&self) {
         let mut state = self.state.lock();
 
-        // Unconfigure the surface so the renderer stops trying to present,
-        // but keep the renderer alive so the atlas (with all cached
-        // texture IDs) survives across the background/foreground cycle.
+        // Release the old surface immediately, but keep the renderer object
+        // alive so the atlas (with all cached texture IDs) survives across
+        // the background/foreground cycle.
         if let Some(ref mut renderer) = state.renderer {
             renderer.unconfigure_surface();
-            log::info!("AndroidWindow::term_window — surface unconfigured (renderer kept alive)");
+            log::info!("AndroidWindow::term_window — surface released (renderer kept alive)");
         }
 
         // Release our reference on the native window.
@@ -891,7 +891,11 @@ impl AndroidWindow {
 
     /// Whether the window currently has an active wgpu surface.
     pub fn has_surface(&self) -> bool {
-        self.state.lock().renderer.is_some()
+        self.state
+            .lock()
+            .renderer
+            .as_ref()
+            .is_some_and(WgpuRenderer::has_surface)
     }
 
     /// Returns the sprite atlas from the renderer, if available.
